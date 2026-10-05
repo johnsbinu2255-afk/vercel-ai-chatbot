@@ -159,3 +159,9 @@ for all
 to authenticated
 using ((auth.uid() = user_id))
 with check ((auth.uid() = user_id));
+
+-- Explicit grants (newer Supabase projects may not grant these by default).
+grant select on public.categories to authenticated;
+grant select, insert, update, delete on public.products to authenticated;
+grant select, insert, update, delete on public.stock_movements to authenticated;
+grant execute on function public.record_stock_movement(uuid, text, integer, numeric, text) to authenticated;
