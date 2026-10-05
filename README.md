@@ -30,6 +30,17 @@
 - Chat History with [Supabase Postgres DB](https://supabase.com)
 - [Supabase Auth](https://supabase.com/auth) for authentication
 
+## Inventory (car accessory shop)
+
+Signed-in users get an **Inventory** section at `/inventory` for tracking shop stock:
+
+- Categories: Android, Camera, Horn, LED Headlights, Fog Lights, Single DIN, Speakers (seeded by the migration; add more in the `categories` table)
+- Add/edit/delete products with brand, model, SKU/barcode, cost and selling price, and a low-stock alert level
+- Record **sales**, **stock in** (purchases) and **stock counts**; every change is logged in the product's stock history
+- Dashboard with total stock value, low/out-of-stock warnings, category filters, search, and recent activity
+
+The database tables and the `record_stock_movement` function live in `supabase/migrations/20261005000000_inventory.sql`. Apply them with `supabase db push` (or `supabase db reset` locally). Prices are shown in INR; change `CURRENCY`/`LOCALE` in `lib/inventory.ts` for another currency.
+
 ## Model Providers
 
 This template ships with OpenAI `gpt-3.5-turbo` as the default. However, thanks to the [Vercel AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [Anthropic](https://anthropic.com), [Hugging Face](https://huggingface.co), or using [LangChain](https://js.langchain.com) with just a few lines of code.

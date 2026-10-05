@@ -34,6 +34,140 @@ export interface Database {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          created_at: string
+          id: number
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          brand: string | null
+          category_id: number
+          created_at: string
+          id: string
+          model: string | null
+          name: string
+          notes: string | null
+          purchase_price: number
+          quantity: number
+          reorder_level: number
+          selling_price: number
+          sku: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brand?: string | null
+          category_id: number
+          created_at?: string
+          id?: string
+          model?: string | null
+          name: string
+          notes?: string | null
+          purchase_price?: number
+          quantity?: number
+          reorder_level?: number
+          selling_price?: number
+          sku?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          brand?: string | null
+          category_id?: number
+          created_at?: string
+          id?: string
+          model?: string | null
+          name?: string
+          notes?: string | null
+          purchase_price?: number
+          quantity?: number
+          reorder_level?: number
+          selling_price?: number
+          sku?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          id: number
+          note: string | null
+          product_id: string
+          quantity_after: number
+          quantity_change: number
+          type: string
+          unit_price: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          note?: string | null
+          product_id: string
+          quantity_after: number
+          quantity_change: number
+          type: string
+          unit_price?: number | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          note?: string | null
+          product_id?: string
+          quantity_after?: number
+          quantity_change?: number
+          type?: string
+          unit_price?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       chats: {
         Row: {
           id: string
@@ -64,7 +198,16 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      record_stock_movement: {
+        Args: {
+          p_product_id: string
+          p_type: string
+          p_quantity: number
+          p_unit_price?: number
+          p_note?: string
+        }
+        Returns: Database['public']['Tables']['products']['Row']
+      }
     }
     Enums: {
       [_ in never]: never
