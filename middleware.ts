@@ -15,8 +15,7 @@ export async function middleware(req: NextRequest) {
     data: { session }
   } = await supabase.auth.getSession()
 
-  // OPTIONAL: this forces users to be logged in to use the chatbot.
-  // If you want to allow anonymous users, simply remove the check below.
+  // Everyone must sign in: the shop's data is private to the owner and staff.
   if (
     !session &&
     !req.url.includes('/sign-in') &&
@@ -35,12 +34,11 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - share (publicly shared chats)
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * - the icons and the web app manifest, which phones fetch before sign-in
      */
-    '/((?!share|api|_next/static|_next/image|favicon.ico).*)'
+    '/((?!api|_next/static|_next/image|favicon.ico|favicon-16x16.png|apple-touch-icon.png|manifest.webmanifest).*)'
   ]
 }

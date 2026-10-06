@@ -1,97 +1,36 @@
-<a href="https://chat.vercel.ai/">
-  <img alt="Next.js 13 and app template Router-ready AI chatbot." src="https://chat.vercel.ai/opengraph-image.png" />
-  <h1 align="center">Next.js AI Chatbot</h1>
-</a>
+# Car Shop
 
-<p align="center">
-  An open-source AI chatbot app template built with Next.js, the Vercel AI SDK, OpenAI, and Supabase Auth and Postgres DB.
-</p>
+Stock, billing and reports for a car accessory shop, built with Next.js and Supabase. It works on phones and computers and can be added to the home screen like an app.
 
-<p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#model-providers"><strong>Model Providers</strong></a> ·
-  <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
-  <a href="#running-locally"><strong>Running locally</strong></a> ·
-  <a href="#authors"><strong>Authors</strong></a>
-</p>
-<br/>
+## What it does
 
-## Features
+- **Sell:** search or scan product codes, add fitting charges and serial numbers, take cash, UPI, card or udhaar (with part payment), send the bill on WhatsApp or print it.
+- **Stock:** bulk add new products (or paste them from Excel), add delivered quantities for many products at once, count stock, and see every stock change.
+- **Customers:** cars, purchase history and warranty months left; an udhaar book with WhatsApp reminders.
+- **Fitting jobs and quotations:** track cars in the shop and turn jobs or quotations into bills.
+- **Owner only:** buying prices, profit, suppliers and purchases, expenses and daily cash closing, reports for day / week / month / quarter / year (Indian financial year) with profit per product, and a night summary to send on WhatsApp.
+- **Backup:** download all bills and the stock list as Excel (CSV) files.
 
-- [Next.js](https://nextjs.org) App Router
-- React Server Components (RSCs), Suspense, and Server Actions
-- [Vercel AI SDK](https://sdk.vercel.ai/docs) for streaming chat UI
-- Support for OpenAI (default), Anthropic, Hugging Face, or custom AI chat models and/or LangChain
-- Edge runtime-ready
-- [shadcn/ui](https://ui.shadcn.com)
-  - Styling with [Tailwind CSS](https://tailwindcss.com)
-  - [Radix UI](https://radix-ui.com) for headless component primitives
-  - Icons from [Phosphor Icons](https://phosphoricons.com)
-- Chat History with [Supabase Postgres DB](https://supabase.com)
-- [Supabase Auth](https://supabase.com/auth) for authentication
+There is no GST in bills.
 
-## Inventory (car accessory shop)
+## Owner and staff
 
-Signed-in users get an **Inventory** section at `/inventory` for tracking shop stock:
+Everyone signs in with an email and password.
 
-- Categories: Android, Camera, Horn, LED Headlights, Fog Lights, Single DIN, Speakers (seeded by the migration; add more in the `categories` table)
-- Add/edit/delete products with brand, model, SKU/barcode, cost and selling price, and a low-stock alert level
-- Record **sales**, **stock in** (purchases) and **stock counts**; every change is logged in the product's stock history
-- Dashboard with total stock value, low/out-of-stock warnings, category filters, search, and recent activity
+- The first person to open a new shop taps **Set up my shop** and becomes the owner.
+- The owner adds staff emails in **More → Settings → Staff**. Staff then create an account with that same email.
+- Staff can sell, add stock and manage customers, jobs and quotations. Buying prices, profit, suppliers, expenses and reports are protected by row level security in the database, so staff can't read them even through the API.
 
-The database tables and the `record_stock_movement` function live in `supabase/migrations/20261005000000_inventory.sql`. Apply them with `supabase db push` (or `supabase db reset` locally). Prices are shown in INR; change `CURRENCY`/`LOCALE` in `lib/inventory.ts` for another currency.
+## Setup
 
-## Model Providers
-
-This template ships with OpenAI `gpt-3.5-turbo` as the default. However, thanks to the [Vercel AI SDK](https://sdk.vercel.ai/docs), you can switch LLM providers to [Anthropic](https://anthropic.com), [Hugging Face](https://huggingface.co), or using [LangChain](https://js.langchain.com) with just a few lines of code.
-
-## Deploy Your Own
-
-You can deploy your own version of the Next.js AI Chatbot to Vercel with one click:
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fsupabase-community%2Fvercel-ai-chatbot&env=OPENAI_API_KEY&envDescription=You%20must%20first%20activate%20a%20Billing%20Account%20here%3A%20https%3A%2F%2Fplatform.openai.com%2Faccount%2Fbilling%2Foverview&envLink=https%3A%2F%2Fplatform.openai.com%2Faccount%2Fapi-keys&project-name=vercel-ai-chatbot-with-supabase&repository-name=vercel-ai-chatbot-with-supabase&integration-ids=oac_VqOgBHqhEoFTPzGkPd7L0iH6&external-id=https%3A%2F%2Fgithub.com%2Fsupabase-community%2Fvercel-ai-chatbot%2Ftree%2Fmain)
-
-### Set up GitHub OAuth
-
-This demo uses GitHub Oauth. Follow the [GitHub OAuth setup steps](https://supabase.com/docs/guides/auth/social-login/auth-github) on your Supabase project.
-
-### Configure your site url
-
-In the Supabase Dashboard, navigate to [Auth > URL configuration](https://app.supabase.com/project/_/auth/url-configuration) and set your Vercel URL as the site URL.
-
-## Running locally
-
-You will need to use the environment variables [defined in `.env.example`](.env.example) to run Next.js AI Chatbot. It's recommended you use [Vercel Environment Variables](https://vercel.com/docs/concepts/projects/environment-variables) for this, but a `.env` file is all that is necessary.
-
-> Note: You should not commit your `.env` file or it will expose secrets that will allow others to control access to your various OpenAI and authentication provider accounts.
-
-Copy the `.env.example` file and populate the required env vars:
-
-```bash
-cp .env.example .env
-```
-
-[Install the Supabase CLI](https://supabase.com/docs/guides/cli) and start the local Supabase stack:
-
-```bash
-npm install supabase --save-dev
-npx supabase start
-```
-
-Install the local dependencies and start dev mode:
+1. Create a Supabase project and run the SQL in `supabase/migrations/` in order (in the dashboard's SQL Editor, or with `supabase db push`). `20261006000000_shop.sql` creates everything the app uses.
+2. In Supabase **Authentication → Sign In / Providers → Email**, keep email sign-in on. Turn **Confirm email** off if staff should be able to sign in right away.
+3. Copy `.env.example` to `.env` (or set these in Vercel) and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from **Project Settings → API**.
+4. Install and run:
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Your app template should now be running on [localhost:3000](http://localhost:3000/).
-
-## Authors
-
-This library is created by [Vercel](https://vercel.com) and [Next.js](https://nextjs.org) team members, with contributions from:
-
-- Jared Palmer ([@jaredpalmer](https://twitter.com/jaredpalmer)) - [Vercel](https://vercel.com)
-- Shu Ding ([@shuding\_](https://twitter.com/shuding_)) - [Vercel](https://vercel.com)
-- shadcn ([@shadcn](https://twitter.com/shadcn)) - [Contractor](https://shadcn.com)
-- Thor Schaeff ([@thorwebdev](https://twitter.com/thorwebdev)) - [Supabaseifier](https://thor.bio)
+The app runs at [localhost:3000](http://localhost:3000/).
