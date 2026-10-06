@@ -1,9 +1,10 @@
-import { auth } from '@/auth'
-import { LoginButton } from '@/components/login-button'
-import { LoginForm } from '@/components/login-form'
-import { Separator } from '@/components/ui/separator'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+
+import { auth } from '@/auth'
+import { AuthScreen } from '@/components/shop/auth-screen'
+
+export const metadata = { title: 'Sign in' }
 
 export default async function SignInPage() {
   const cookieStore = cookies()
@@ -12,15 +13,5 @@ export default async function SignInPage() {
   if (session?.user) {
     redirect('/')
   }
-  return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] flex-col items-center justify-center py-10">
-      <div className="w-full max-w-sm">
-        <LoginForm action="sign-in" />
-        <Separator className="my-4" />
-        <div className="flex justify-center">
-          <LoginButton />
-        </div>
-      </div>
-    </div>
-  )
+  return <AuthScreen mode="sign-in" />
 }
