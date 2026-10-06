@@ -85,7 +85,11 @@ export default function StockPage() {
               <span className="t">
                 {p.name}
                 <small>
-                  {[p.brand, rs(p.price), shop.isOwner && shop.costs[p.id] !== undefined ? 'buy ' + rs(shop.costs[p.id]) : '']
+                  {[
+                    p.brand,
+                    rs(p.price),
+                    shop.isOwner ? (shop.costs[p.id] !== undefined ? 'buy ' + rs(shop.costs[p.id]) : 'no buy price') : ''
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                 </small>

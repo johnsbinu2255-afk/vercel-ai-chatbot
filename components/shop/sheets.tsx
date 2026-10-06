@@ -298,6 +298,9 @@ function ProductSheet({ id }: { id?: string }) {
               </div>
             </div>
           </div>
+          {shop.isOwner && cost === undefined ? (
+            <div className="note">No buying price yet, so profit counts this item as free. Add it below.</div>
+          ) : null}
           <button className="btn blue" onClick={() => shop.openSheet({ type: 'move', id: p.id })}>
             Change stock
           </button>
