@@ -15,6 +15,7 @@ type SortKey = 'profit' | 'qty' | 'margin'
 
 export default function ReportsPage() {
   const shop = useShop()
+  const allowed = shop.can('reports')
   const [type, setType] = React.useState<PeriodType>('month')
   const [off, setOff] = React.useState(0)
   const [now, setNow] = React.useState<Report | null>(null)
@@ -26,7 +27,7 @@ export default function ReportsPage() {
   const bars = buckets(type, range)
 
   React.useEffect(() => {
-    if (!shop.isOwner) return
+    if (!allowed) return
     let live = true
     setNow(null)
     const r = periodRange(type, off)
@@ -42,9 +43,9 @@ export default function ReportsPage() {
     return () => {
       live = false
     }
-  }, [type, off, shop.isOwner, shop.bills])
+  }, [type, off, allowed, shop.bills])
 
-  if (!shop.isOwner) return <OwnerOnly title="Reports" />
+  if (!allowed) return <OwnerOnly title="Reports" />
 
   const products: (ReportProduct & { margin: number; label: string })[] = (now?.products ?? []).map(p => ({
     ...p,
@@ -68,7 +69,7 @@ export default function ReportsPage() {
 
   return (
     <>
-      <TopBar title="Reports" sub="Owner only" back="/more" />
+      <TopBar title="Reports" sub="Sales, profit and stock" back="/more" />
       <div className="seg5">
         {PERIODS.map(([t, label]) => (
           <button
@@ -238,7 +239,7 @@ export default function ReportsPage() {
                 <small>at buying price · at selling price</small>
               </span>
               <span className="r">
-                {rs(shop.products.reduce((s, p) => s + p.qty * (shop.costs[p.id] ?? 0), 0))}
+                {shop.can('costs') ? rs(shop.products.reduce((s, p) => s + p.qty * (shop.costs[p.id] ?? 0), 0)) : '—'}
                 <small>{rs(shop.products.reduce((s, p) => s + p.qty * p.price, 0))}</small>
               </span>
             </div>

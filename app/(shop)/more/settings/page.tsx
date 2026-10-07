@@ -5,9 +5,18 @@ import { toast } from 'react-hot-toast'
 
 import { addCategory, addStaff, allBills, loadMembers, removeStaff, saveSettings } from '@/lib/shop/api'
 import { billNo, csv, fdt } from '@/lib/shop/format'
-import type { Member } from '@/lib/shop/types'
+import type { Member, StaffArea } from '@/lib/shop/types'
 import { useShop } from '@/components/shop/context'
 import { Empty, Icon, Loading, TopBar } from '@/components/shop/ui'
+
+const ACCESS: [StaffArea, string, string, string][] = [
+  ['summary', 'Night summary', "Today's sales and profit", 'chat'],
+  ['reports', 'Reports', 'Sales and profit, day to year', 'chart'],
+  ['suppliers', 'Suppliers', 'Purchases, payments, what you owe', 'truck'],
+  ['expenses', 'Expenses', "Add expenses, today's closing", 'wallet'],
+  ['costs', 'Buying prices', 'Buying prices, profit per item', 'rupee'],
+  ['cancel', 'Cancel bills', 'Cancel wrong bills; stock goes back', 'bill']
+]
 
 function download(name: string, text: string) {
   // The BOM makes Excel read ₹ and other characters correctly.
@@ -38,6 +47,19 @@ export default function SettingsPage() {
   const [category, setCategory] = React.useState('')
   const [removing, setRemoving] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const access = s.staff_access ?? []
+
+  async function toggle(area: StaffArea, label: string, on: boolean) {
+    setSaving(true)
+    const next = on ? access.filter(a => a !== area) : [...access, area]
+    const ok = await shop.run(
+      () => saveSettings({ staff_access: next }),
+      on ? label + ' locked for staff' : 'Staff can now use ' + label
+    )
+    if (ok !== undefined) await shop.refresh()
+    setSaving(false)
+  }
 
   const loadTeam = React.useCallback(() => {
     loadMembers().then(setMembers, () => setMembers([]))
@@ -172,37 +194,9 @@ export default function SettingsPage() {
           <div className="card stack">
             <span className="muted" style={{ fontSize: 14 }}>
               Add a staff member&apos;s Gmail here. Then send them the website link: they tap <b>Create an account</b> with
-              that same Gmail and choose a password. Staff can sell, add stock and see customers, but never buying prices
-              or profit.
+              that same Gmail and choose a password. Staff can sell, add stock and see customers. Use{' '}
+              <b>Staff access</b> below to unlock more.
             </span>
-            <div className="row">
-              <span className={'ic ' + (s.staff_expenses ? 'g' : 'a')}>
-                <Icon name="wallet" />
-              </span>
-              <span className="t">
-                Staff can add expenses
-                <small>
-                  {s.staff_expenses
-                    ? 'On · only you can delete'
-                    : 'Off · only you can open Expenses'}
-                </small>
-              </span>
-              <button
-                className={'btn sm' + (s.staff_expenses ? '' : ' blue')}
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true)
-                  const ok = await shop.run(
-                    () => saveSettings({ staff_expenses: !s.staff_expenses }),
-                    s.staff_expenses ? 'Expenses locked for staff' : 'Staff can now add expenses'
-                  )
-                  if (ok !== undefined) await shop.refresh()
-                  setBusy(false)
-                }}
-              >
-                {s.staff_expenses ? 'Turn off' : 'Turn on'}
-              </button>
-            </div>
             {members === null ? (
               <Loading />
             ) : (
@@ -262,6 +256,35 @@ export default function SettingsPage() {
                 </button>
               </div>
             </form>
+          </div>
+
+          <div className="sec">Staff access</div>
+          <div className="card">
+            <span className="muted" style={{ fontSize: 14, display: 'block', paddingBottom: 4 }}>
+              Turn a section on to let all staff use it. Turn it off and it locks again straight away.
+            </span>
+            {ACCESS.map(([area, label, note, icon]) => {
+              const on = access.includes(area)
+              return (
+                <div className="row" key={area}>
+                  <span className={'ic ' + (on ? 'g' : 'a')}>
+                    <Icon name={on ? icon : 'lock'} />
+                  </span>
+                  <span className="t">
+                    {label}
+                    <small>{note}</small>
+                  </span>
+                  <button
+                    className="switch"
+                    role="switch"
+                    aria-checked={on}
+                    aria-label={'Staff can use ' + label}
+                    disabled={saving}
+                    onClick={() => toggle(area, label, on)}
+                  />
+                </div>
+              )
+            })}
           </div>
 
           <div className="sec">Categories</div>

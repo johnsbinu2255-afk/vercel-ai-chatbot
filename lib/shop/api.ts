@@ -80,7 +80,7 @@ export interface ShopData {
   bills: Bill[]
 }
 
-export async function loadShop(isOwner: boolean): Promise<ShopData> {
+export async function loadShop(): Promise<ShopData> {
   const sb = supabase()
   const [settings, categories, products, customers, dues, jobs, quotes, bills, costs] =
     await Promise.all([
@@ -96,9 +96,8 @@ export async function loadShop(isOwner: boolean): Promise<ShopData> {
         .select('*, items:shop_bill_items(*)')
         .order('created_at', { ascending: false })
         .limit(200),
-      isOwner
-        ? sb.from('shop_product_costs').select('product_id, cost')
-        : Promise.resolve({ data: [] as any[], error: null })
+      // Comes back empty unless this person may see buying prices.
+      sb.from('shop_product_costs').select('product_id, cost')
     ])
   const dueMap: Record<string, Due> = {}
   for (const d of check(dues) as any[]) {
@@ -107,7 +106,7 @@ export async function loadShop(isOwner: boolean): Promise<ShopData> {
   const costMap: Record<string, number> = {}
   for (const c of check(costs) as any[]) costMap[c.product_id] = toNum(c.cost)
   return {
-    settings: check(settings) as Settings,
+    settings: { ...(check(settings) as Settings), staff_access: (settings.data as any)?.staff_access ?? [] },
     categories: check(categories) as Category[],
     products: (check(products) as any[]).map(normalizeProduct),
     costs: costMap,

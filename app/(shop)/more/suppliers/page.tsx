@@ -13,6 +13,7 @@ type Form = { kind: 'supplier' } | { kind: 'purchase' } | { kind: 'pay'; supplie
 
 export default function SuppliersPage() {
   const shop = useShop()
+  const allowed = shop.can('suppliers')
   const [data, setData] = React.useState<{ suppliers: SupplierRow[]; purchases: Purchase[] } | null>(null)
   const [form, setForm] = React.useState<Form>(null)
 
@@ -20,10 +21,10 @@ export default function SuppliersPage() {
     loadSuppliers().then(setData, () => toast.error("Couldn't load suppliers"))
   }, [])
   React.useEffect(() => {
-    if (shop.isOwner) load()
-  }, [shop.isOwner, load])
+    if (allowed) load()
+  }, [allowed, load])
 
-  if (!shop.isOwner) return <OwnerOnly title="Suppliers" />
+  if (!allowed) return <OwnerOnly title="Suppliers" />
   const owed = data?.suppliers.reduce((s, x) => s + Math.max(0, x.owed), 0) ?? 0
   const name = (id: string) => data?.suppliers.find(s => s.id === id)?.name ?? ''
 

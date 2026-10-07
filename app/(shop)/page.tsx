@@ -10,16 +10,22 @@ import { Empty, Icon, TopBar } from '@/components/shop/ui'
 
 export default function HomePage() {
   const shop = useShop()
+  const seesProfit = shop.can('reports') || shop.can('summary')
   const [profit, setProfit] = React.useState<number | null>(null)
   const dayStart = startOfDay(Date.now())
-  const today = shop.bills.filter(b => !b.cancelled && ts(b.created_at) >= dayStart)
+  const today = shop.bills.filter(
+    b => !b.cancelled && ts(b.created_at) >= dayStart
+  )
   const sales = today.reduce((s, b) => s + b.total, 0)
 
   // Profit needs buying prices, which only the owner's account can read.
   React.useEffect(() => {
-    if (!shop.isOwner) return
-    report(dayStart, dayStart + DAY).then(r => setProfit(r.profit), () => setProfit(null))
-  }, [shop.isOwner, shop.bills, dayStart])
+    if (!seesProfit) return
+    report(dayStart, dayStart + DAY).then(
+      r => setProfit(r.profit),
+      () => setProfit(null)
+    )
+  }, [seesProfit, shop.bills, dayStart])
 
   const out = shop.products.filter(p => p.qty === 0)
   const low = shop.products.filter(p => p.qty > 0 && p.qty <= p.reorder_level)
@@ -28,9 +34,13 @@ export default function HomePage() {
   const ready = shop.jobs.filter(j => j.status === 'ready')
   const recent = shop.bills.filter(b => !b.cancelled).slice(0, 4)
   const h = new Date().getHours()
-  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-  const [sh, sm] = (shop.settings.summary_time || '21:00').split(':').map(Number)
-  const summaryReady = h > sh || (h === sh && new Date().getMinutes() >= (sm || 0))
+  const greeting =
+    h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  const [sh, sm] = (shop.settings.summary_time || '21:00')
+    .split(':')
+    .map(Number)
+  const summaryReady =
+    h > sh || (h === sh && new Date().getMinutes() >= (sm || 0))
 
   return (
     <>
@@ -41,7 +51,11 @@ export default function HomePage() {
         <span className="s">
           <span>{count(today.length, 'bill')}</span>
           <span>
-            {shop.isOwner ? (profit === null ? 'Profit …' : 'Profit ' + rs(profit)) : 'Profit: owner only'}
+            {seesProfit
+              ? profit === null
+                ? 'Profit …'
+                : 'Profit ' + rs(profit)
+              : 'Profit: locked'}
           </span>
         </span>
       </div>
@@ -94,8 +108,11 @@ export default function HomePage() {
               <Icon name="car" />
             </span>
             <span className="t">
-              {ready.length} {ready.length === 1 ? 'car' : 'cars'} ready for pickup
-              <small>{ready.map(j => `${j.car_no} · ${j.model}`).join(', ')}</small>
+              {ready.length} {ready.length === 1 ? 'car' : 'cars'} ready for
+              pickup
+              <small>
+                {ready.map(j => `${j.car_no} · ${j.model}`).join(', ')}
+              </small>
             </span>
             <span className="chev">›</span>
           </Link>
@@ -105,28 +122,42 @@ export default function HomePage() {
         ) : null}
       </div>
 
-      {shop.isOwner ? (
+      {seesProfit ? (
         <div className="card">
-          <Link className="row" href="/more/summary">
-            <span className="ic g">
-              <Icon name="chat" />
-            </span>
-            <span className="t">
-              Today&apos;s summary
-              <small>{summaryReady ? 'Ready to send on WhatsApp' : 'Sales, profit, cash and stock in one message'}</small>
-            </span>
-            {summaryReady ? <span className="pill g">Ready</span> : <span className="chev">›</span>}
-          </Link>
-          <Link className="row" href="/more/reports">
-            <span className="ic b">
-              <Icon name="chart" />
-            </span>
-            <span className="t">
-              Reports
-              <small>Day, week, month, quarter, year · profit per product</small>
-            </span>
-            <span className="chev">›</span>
-          </Link>
+          {shop.can('summary') ? (
+            <Link className="row" href="/more/summary">
+              <span className="ic g">
+                <Icon name="chat" />
+              </span>
+              <span className="t">
+                Today&apos;s summary
+                <small>
+                  {summaryReady
+                    ? 'Ready to send on WhatsApp'
+                    : 'Sales, profit, cash and stock in one message'}
+                </small>
+              </span>
+              {summaryReady ? (
+                <span className="pill g">Ready</span>
+              ) : (
+                <span className="chev">›</span>
+              )}
+            </Link>
+          ) : null}
+          {shop.can('reports') ? (
+            <Link className="row" href="/more/reports">
+              <span className="ic b">
+                <Icon name="chart" />
+              </span>
+              <span className="t">
+                Reports
+                <small>
+                  Day, week, month, quarter, year · profit per product
+                </small>
+              </span>
+              <span className="chev">›</span>
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
@@ -136,7 +167,11 @@ export default function HomePage() {
       <div className="card">
         {recent.length ? (
           recent.map(b => (
-            <button className="row" key={b.id} onClick={() => shop.openSheet({ type: 'bill', id: b.id })}>
+            <button
+              className="row"
+              key={b.id}
+              onClick={() => shop.openSheet({ type: 'bill', id: b.id })}
+            >
               <span className="t">
                 {shop.customer(b.customer_id)?.name ?? 'Walk-in'}
                 <small>{b.items.map(l => l.name).join(', ')}</small>

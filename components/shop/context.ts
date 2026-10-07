@@ -3,7 +3,7 @@
 import * as React from 'react'
 
 import type { ShopData } from '@/lib/shop/api'
-import type { Cart, Category, Customer, Me, Product } from '@/lib/shop/types'
+import type { Cart, Category, Customer, Me, Product, StaffArea } from '@/lib/shop/types'
 
 export interface PastedRow {
   name: string
@@ -29,6 +29,8 @@ export type SheetSpec =
 export interface Shop extends ShopData {
   me: Me
   isOwner: boolean
+  /** The owner can always; staff only when the owner switched the section on. */
+  can: (area: StaffArea) => boolean
   refresh: () => Promise<void>
   cart: Cart
   setCart: React.Dispatch<React.SetStateAction<Cart>>

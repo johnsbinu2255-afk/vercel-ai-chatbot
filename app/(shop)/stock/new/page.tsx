@@ -60,7 +60,7 @@ export default function BulkAddPage() {
           category_id: r.category_id ? Number(r.category_id) : null,
           price: num(r.price),
           qty: Math.max(0, Math.round(num(r.qty))),
-          cost: shop.isOwner && r.cost.trim() !== '' ? num(r.cost) : null,
+          cost: shop.can('costs') && r.cost.trim() !== '' ? num(r.cost) : null,
           fits: 'Universal'
         }))
       )
@@ -85,7 +85,7 @@ export default function BulkAddPage() {
       </div>
       <div className="note">
         One row is one product. Empty rows are skipped.
-        {shop.isOwner ? ' The buying price is only visible to you.' : " Staff can't see or enter buying prices."}
+        {shop.can('costs') ? ' The buying price is only visible to you.' : " Staff can't see or enter buying prices."}
       </div>
       <div className="btns">
         <button className="btn soft" onClick={() => shop.openSheet({ type: 'paste', onRows: fromPaste })}>
@@ -102,7 +102,7 @@ export default function BulkAddPage() {
               <th>#</th>
               <th>Product name</th>
               <th>Category</th>
-              {shop.isOwner ? (
+              {shop.can('costs') ? (
                 <th>
                   Buy ₹ <span className="lock">OWNER</span>
                 </th>
@@ -127,7 +127,7 @@ export default function BulkAddPage() {
                     ))}
                   </select>
                 </td>
-                {shop.isOwner ? (
+                {shop.can('costs') ? (
                   <td className="num">
                     <input value={r.cost} onChange={set(i, 'cost')} inputMode="decimal" placeholder="0" aria-label={`Row ${i + 1} buy price`} />
                   </td>

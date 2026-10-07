@@ -164,7 +164,7 @@ function BillSheet({ id }: { id: string }) {
           Receive balance
         </button>
       ) : null}
-      {shop.isOwner && !bill.cancelled ? (
+      {shop.can('cancel') && !bill.cancelled ? (
         confirm ? (
           <div className="card stack">
             <b>Cancel this bill?</b>
@@ -221,6 +221,7 @@ interface ProductForm {
 
 function ProductSheet({ id }: { id?: string }) {
   const shop = useShop()
+  const canCosts = shop.can('costs')
   const p = shop.product(id)
   const [f, setF] = React.useState<ProductForm>(() => ({
     name: p?.name ?? '',
@@ -242,8 +243,8 @@ function ProductSheet({ id }: { id?: string }) {
   React.useEffect(() => {
     if (!p) return
     productMoves(p.id).then(setMoves, () => setMoves([]))
-    if (shop.isOwner) costHistory(p.id).then(setCosts, () => setCosts([]))
-  }, [p, shop.isOwner])
+    if (canCosts) costHistory(p.id).then(setCosts, () => setCosts([]))
+  }, [p, canCosts])
 
   const set = (k: keyof ProductForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setF(prev => ({ ...prev, [k]: e.target.value }))
@@ -266,7 +267,7 @@ function ProductSheet({ id }: { id?: string }) {
           reorder_level: Math.round(num(f.reorder_level)),
           warranty_months: Math.round(num(f.warranty_months)),
           fits: f.fits,
-          cost: shop.isOwner && f.cost.trim() !== '' ? num(f.cost) : null
+          cost: canCosts && f.cost.trim() !== '' ? num(f.cost) : null
         }),
       p ? 'Saved' : 'Product added'
     )
@@ -292,13 +293,13 @@ function ProductSheet({ id }: { id?: string }) {
               <div className="v">{rs(p.price)}</div>
             </div>
             <div className="card">
-              <div className="k">{shop.isOwner ? 'Profit each' : 'Warranty'}</div>
+              <div className="k">{canCosts ? 'Profit each' : 'Warranty'}</div>
               <div className="v">
-                {shop.isOwner ? (cost !== undefined ? rs(p.price - cost) : '—') : p.warranty_months + ' mo'}
+                {canCosts ? (cost !== undefined ? rs(p.price - cost) : '—') : p.warranty_months + ' mo'}
               </div>
             </div>
           </div>
-          {shop.isOwner && cost === undefined ? (
+          {canCosts && cost === undefined ? (
             <div className="note">No buying price yet, so profit counts this item as free. Add it below.</div>
           ) : null}
           <button className="btn blue" onClick={() => shop.openSheet({ type: 'move', id: p.id })}>
@@ -419,7 +420,7 @@ function ProductSheet({ id }: { id?: string }) {
               <Empty>No history yet.</Empty>
             )}
           </div>
-          {shop.isOwner && costs.length ? (
+          {canCosts && costs.length ? (
             <>
               <div className="sec">Buying price history</div>
               <div className="card">
@@ -990,7 +991,7 @@ function QuoteSheet({ id }: { id: string }) {
 function PasteSheet({ onRows }: { onRows: (rows: PastedRow[]) => void }) {
   const shop = useShop()
   const [text, setText] = React.useState('')
-  const owner = shop.isOwner
+  const owner = shop.can('costs')
   const columns = owner
     ? 'Name · Buy price · Sell price · Quantity · Category (optional)'
     : 'Name · Sell price · Quantity · Category (optional)'
@@ -1049,7 +1050,7 @@ function AccountSheet() {
         <div className="row">
           <span className="t">
             {shop.me.email}
-            <small>{shop.isOwner ? 'Owner: sees everything' : 'Staff: no buying prices or profit'}</small>
+            <small>{shop.isOwner ? 'Owner: sees everything' : 'Staff: the owner chooses what you can open'}</small>
           </span>
           <span className={'pill ' + (shop.isOwner ? 'b' : 'a')}>{shop.isOwner ? 'Owner' : 'Staff'}</span>
         </div>

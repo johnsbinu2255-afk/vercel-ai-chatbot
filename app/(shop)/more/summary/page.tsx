@@ -11,6 +11,7 @@ import { Icon, Loading, OwnerOnly, TopBar, WaButton } from '@/components/shop/ui
 
 export default function SummaryPage() {
   const shop = useShop()
+  const allowed = shop.can('summary')
   const [off, setOff] = React.useState(0)
   const [day, setDay] = React.useState<Report | null>(null)
   const [prev, setPrev] = React.useState<Report | null>(null)
@@ -18,7 +19,7 @@ export default function SummaryPage() {
   const end = startOfDay(start + DAY + DAY / 2)
 
   React.useEffect(() => {
-    if (!shop.isOwner) return
+    if (!allowed) return
     let live = true
     setDay(null)
     const before = startOfDay(start - DAY / 2)
@@ -33,9 +34,9 @@ export default function SummaryPage() {
     return () => {
       live = false
     }
-  }, [shop.isOwner, start, end, shop.bills])
+  }, [allowed, start, end, shop.bills])
 
-  if (!shop.isOwner) return <OwnerOnly title="Night summary" />
+  if (!allowed) return <OwnerOnly title="Night summary" />
 
   const label = off === 0 ? 'Today' : off === -1 ? 'Yesterday' : fd(start)
   const best = day?.products.filter(p => p.product_id).sort((a, b) => b.qty - a.qty)[0]

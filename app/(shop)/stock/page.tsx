@@ -35,7 +35,7 @@ export default function StockPage() {
           Add quantity
         </Link>
       </div>
-      {shop.isOwner ? (
+      {shop.can('costs') ? (
         <div className="kp">
           <div className="card">
             <div className="k">Stock value (buy)</div>
@@ -88,7 +88,7 @@ export default function StockPage() {
                   {[
                     p.brand,
                     rs(p.price),
-                    shop.isOwner ? (shop.costs[p.id] !== undefined ? 'buy ' + rs(shop.costs[p.id]) : 'no buy price') : ''
+                    shop.can('costs') ? (shop.costs[p.id] !== undefined ? 'buy ' + rs(shop.costs[p.id]) : 'no buy price') : ''
                   ]
                     .filter(Boolean)
                     .join(' · ')}

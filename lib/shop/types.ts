@@ -12,9 +12,12 @@ export interface Settings {
   phone: string
   owner_whatsapp: string
   summary_time: string
-  /** The owner lets staff add expenses and see today's closing. */
-  staff_expenses: boolean
+  /** Locked sections the owner has switched on for staff. */
+  staff_access: StaffArea[]
 }
+
+/** Sections the owner can switch on or off for staff. */
+export type StaffArea = 'summary' | 'reports' | 'suppliers' | 'expenses' | 'costs' | 'cancel'
 
 export interface Category {
   id: number

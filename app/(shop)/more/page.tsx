@@ -3,6 +3,7 @@
 import Link from 'next/link'
 
 import { count, rs } from '@/lib/shop/format'
+import type { StaffArea } from '@/lib/shop/types'
 import { type Shop, useShop } from '@/components/shop/context'
 import { Icon, TopBar } from '@/components/shop/ui'
 
@@ -32,11 +33,11 @@ export default function MorePage() {
     <>
       <TopBar
         title="More"
-        sub={shop.isOwner ? 'Owner view: everything unlocked' : 'Staff view: some sections are owner only'}
+        sub={shop.isOwner ? 'Owner view: everything unlocked' : 'Staff view: some sections are locked'}
       />
       <div className="tiles">
         {TILES.map(([slug, label, icon, tone, ownerOnly, note]) => {
-          const locked = ownerOnly && !shop.isOwner && !(slug === 'expenses' && shop.settings.staff_expenses)
+          const locked = ownerOnly && !shop.can(slug as StaffArea)
           return (
             <Link className="tile" key={slug} href={'/more/' + slug}>
               <span className={'ic ' + tone}>

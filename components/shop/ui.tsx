@@ -255,7 +255,9 @@ export function OwnerOnly({ title, back = '/more' }: { title: string; back?: str
           <Icon name="lock" />
         </span>
         <b>Owner only</b>
-        <span className="muted">This section shows buying prices and profit, so only the owner can open it.</span>
+        <span className="muted">
+          The owner has locked this section. They can open it for staff in More → Settings → Staff access.
+        </span>
       </div>
     </>
   )

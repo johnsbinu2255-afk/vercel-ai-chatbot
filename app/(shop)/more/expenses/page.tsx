@@ -27,8 +27,7 @@ export default function ExpensesPage() {
     drawer(d, d + DAY).then(setToday, () => setToday(null))
   }, [monthStart])
 
-  // Staff can open this page only when the owner switched it on in Settings.
-  const allowed = shop.isOwner || shop.settings.staff_expenses
+  const allowed = shop.can('expenses')
   React.useEffect(() => {
     if (allowed) load()
   }, [allowed, load, shop.bills])

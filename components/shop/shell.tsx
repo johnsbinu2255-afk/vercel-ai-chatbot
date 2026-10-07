@@ -42,7 +42,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
     const mine = ++loads.current
     try {
       const m = await loadMe()
-      const shopData = m.role ? await loadShop(m.role === 'owner') : null
+      const shopData = m.role ? await loadShop() : null
       if (mine !== loads.current) return
       setMe(m)
       if (shopData) setData(shopData)
@@ -101,6 +101,7 @@ export function ShopShell({ children }: { children: React.ReactNode }) {
       ...data,
       me,
       isOwner: me.role === 'owner',
+      can: area => me.role === 'owner' || (data.settings.staff_access ?? []).includes(area),
       refresh: load,
       cart,
       setCart,

@@ -30,7 +30,7 @@ export default function ReceiveStockPage() {
         chosen.map(id => ({
           product_id: id,
           qty: Math.round(num(qty[id])),
-          cost: shop.isOwner && (cost[id] ?? '').trim() !== '' ? num(cost[id]) : null
+          cost: shop.can('costs') && (cost[id] ?? '').trim() !== '' ? num(cost[id]) : null
         }))
       )
     )
@@ -64,7 +64,7 @@ export default function ReceiveStockPage() {
               <th>Product</th>
               <th>Now</th>
               <th>+ Arrived</th>
-              {shop.isOwner ? (
+              {shop.can('costs') ? (
                 <th>
                   New buy ₹ <span className="lock">OWNER</span>
                 </th>
@@ -87,7 +87,7 @@ export default function ReceiveStockPage() {
                     aria-label={'Arrived for ' + p.name}
                   />
                 </td>
-                {shop.isOwner ? (
+                {shop.can('costs') ? (
                   <td className="num">
                     <input
                       value={cost[p.id] ?? ''}
