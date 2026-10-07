@@ -9,6 +9,8 @@
 --   costs     : Buying prices and profit per item
 --   cancel    : Cancel bills
 
+begin;
+
 alter table public.shop_settings
   add column staff_access text[] not null default '{}'
   check (staff_access <@ array['summary', 'reports', 'suppliers', 'expenses', 'costs', 'cancel']);
@@ -343,3 +345,5 @@ $$;
 
 revoke execute on function public.shop_can(text), public.shop_drawer(timestamptz, timestamptz) from public, anon;
 grant execute on function public.shop_can(text), public.shop_drawer(timestamptz, timestamptz) to authenticated;
+
+commit;
