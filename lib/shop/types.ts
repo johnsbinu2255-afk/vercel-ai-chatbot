@@ -12,6 +12,8 @@ export interface Settings {
   phone: string
   owner_whatsapp: string
   summary_time: string
+  /** The owner lets staff add expenses and see today's closing. */
+  staff_expenses: boolean
 }
 
 export interface Category {
@@ -208,4 +210,5 @@ export interface Expense {
   amount: number
   mode: PayMode
   note: string
+  created_by: string
 }

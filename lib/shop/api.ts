@@ -423,6 +423,17 @@ export async function addExpense(e: { category: string; amount: number; mode: Pa
   check(await supabase().from('shop_expenses').insert(e))
 }
 
+/** Money in minus money out per payment mode (owner, or staff when allowed). */
+export async function drawer(from: number, to: number): Promise<Record<PayMode, number>> {
+  const data = check(
+    await supabase().rpc('shop_drawer', {
+      p_from: new Date(from).toISOString(),
+      p_to: new Date(to).toISOString()
+    })
+  ) as Record<PayMode, number | string>
+  return { cash: toNum(data.cash), upi: toNum(data.upi), card: toNum(data.card) }
+}
+
 export async function deleteExpense(id: string) {
   check(await supabase().from('shop_expenses').delete().eq('id', id))
 }

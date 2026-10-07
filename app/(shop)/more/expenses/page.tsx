@@ -3,32 +3,37 @@
 import * as React from 'react'
 import { toast } from 'react-hot-toast'
 
-import { addExpense, deleteExpense, loadExpenses, report } from '@/lib/shop/api'
+import { addExpense, deleteExpense, drawer, loadExpenses } from '@/lib/shop/api'
 import { DAY, fd, num, rs, startOfDay } from '@/lib/shop/format'
-import type { Expense, PayMode, Report } from '@/lib/shop/types'
+import type { Expense, PayMode } from '@/lib/shop/types'
 import { useShop } from '@/components/shop/context'
 import { Empty, Icon, Loading, OwnerOnly, Sheet, TopBar } from '@/components/shop/ui'
+
+/** The name part of an email, enough to tell staff apart. */
+const who = (email: string) => email.split('@')[0]
 
 const TYPES = ['Rent', 'Salary', 'Electricity', 'Transport', 'Tea & food', 'Repairs', 'Other']
 
 export default function ExpensesPage() {
   const shop = useShop()
   const [list, setList] = React.useState<Expense[] | null>(null)
-  const [today, setToday] = React.useState<Report | null>(null)
+  const [today, setToday] = React.useState<Record<PayMode, number> | null>(null)
   const [adding, setAdding] = React.useState(false)
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()
 
   const load = React.useCallback(() => {
     const d = startOfDay(Date.now())
     loadExpenses(monthStart, Date.now() + DAY).then(setList, () => toast.error("Couldn't load expenses"))
-    report(d, d + DAY).then(setToday, () => setToday(null))
+    drawer(d, d + DAY).then(setToday, () => setToday(null))
   }, [monthStart])
 
+  // Staff can open this page only when the owner switched it on in Settings.
+  const allowed = shop.isOwner || shop.settings.staff_expenses
   React.useEffect(() => {
-    if (shop.isOwner) load()
-  }, [shop.isOwner, load, shop.bills])
+    if (allowed) load()
+  }, [allowed, load, shop.bills])
 
-  if (!shop.isOwner) return <OwnerOnly title="Expenses" />
+  if (!allowed) return <OwnerOnly title="Expenses" />
   const total = list?.reduce((s, e) => s + e.amount, 0) ?? 0
 
   return (
@@ -45,15 +50,15 @@ export default function ExpensesPage() {
                 Cash in drawer
                 <small>cash in − cash spent today</small>
               </span>
-              <span className="r">{rs(today.drawer.cash)}</span>
+              <span className="r">{rs(today.cash)}</span>
             </div>
             <div className="row">
               <span className="t">UPI</span>
-              <span className="r">{rs(today.drawer.upi)}</span>
+              <span className="r">{rs(today.upi)}</span>
             </div>
             <div className="row">
               <span className="t">Card</span>
-              <span className="r">{rs(today.drawer.card)}</span>
+              <span className="r">{rs(today.card)}</span>
             </div>
           </>
         ) : (
@@ -75,9 +80,11 @@ export default function ExpensesPage() {
                 <small>
                   {fd(e.created_at)} · {e.mode.toUpperCase()}
                   {e.note ? ' · ' + e.note : ''}
+                  {shop.isOwner && e.created_by && e.created_by !== shop.me.email ? ' · by ' + who(e.created_by) : ''}
                 </small>
               </span>
               <span className="r">{rs(e.amount)}</span>
+              {shop.isOwner ? (
               <button
                 className="btn sm red"
                 aria-label={'Delete ' + e.category}
@@ -88,6 +95,7 @@ export default function ExpensesPage() {
               >
                 ✕
               </button>
+              ) : null}
             </div>
           ))
         ) : (

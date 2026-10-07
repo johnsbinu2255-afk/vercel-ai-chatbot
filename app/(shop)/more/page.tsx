@@ -36,7 +36,7 @@ export default function MorePage() {
       />
       <div className="tiles">
         {TILES.map(([slug, label, icon, tone, ownerOnly, note]) => {
-          const locked = ownerOnly && !shop.isOwner
+          const locked = ownerOnly && !shop.isOwner && !(slug === 'expenses' && shop.settings.staff_expenses)
           return (
             <Link className="tile" key={slug} href={'/more/' + slug}>
               <span className={'ic ' + tone}>

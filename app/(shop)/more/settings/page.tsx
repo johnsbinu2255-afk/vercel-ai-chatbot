@@ -175,6 +175,34 @@ export default function SettingsPage() {
               that same Gmail and choose a password. Staff can sell, add stock and see customers, but never buying prices
               or profit.
             </span>
+            <div className="row">
+              <span className={'ic ' + (s.staff_expenses ? 'g' : 'a')}>
+                <Icon name="wallet" />
+              </span>
+              <span className="t">
+                Staff can add expenses
+                <small>
+                  {s.staff_expenses
+                    ? 'On · only you can delete'
+                    : 'Off · only you can open Expenses'}
+                </small>
+              </span>
+              <button
+                className={'btn sm' + (s.staff_expenses ? '' : ' blue')}
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true)
+                  const ok = await shop.run(
+                    () => saveSettings({ staff_expenses: !s.staff_expenses }),
+                    s.staff_expenses ? 'Expenses locked for staff' : 'Staff can now add expenses'
+                  )
+                  if (ok !== undefined) await shop.refresh()
+                  setBusy(false)
+                }}
+              >
+                {s.staff_expenses ? 'Turn off' : 'Turn on'}
+              </button>
+            </div>
             {members === null ? (
               <Loading />
             ) : (

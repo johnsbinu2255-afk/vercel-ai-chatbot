@@ -23,7 +23,7 @@ Everyone signs in with an email and password.
 
 ## Setup
 
-1. Create a Supabase project and run the SQL in `supabase/migrations/` in order (in the dashboard's SQL Editor, or with `supabase db push`). `20261006000000_shop.sql` creates everything the app uses.
+1. Create a Supabase project and run the SQL in `supabase/migrations/` in order (in the dashboard's SQL Editor, or with `supabase db push`). `20261006000000_shop.sql` creates everything the app uses; later files add to it.
 2. In Supabase **Authentication → Sign In / Providers → Email**, keep email sign-in on. Turn **Confirm email** off if staff should be able to sign in right away.
 3. Copy `.env.example` to `.env` (or set these in Vercel) and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from **Project Settings → API**.
 4. Install and run:
