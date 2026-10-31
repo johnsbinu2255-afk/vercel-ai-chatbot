@@ -49,8 +49,8 @@ for k, ((a, b), at) in enumerate(zip(regions, SLOTS)):
     print(f'line {k+1}: {b-a:.2f}s at {at}s, tempo {tempo:.3f}')  # speed up slightly only if a line overruns
     parts.append(f'[1:a]atrim={a}:{b},asetpts=PTS-STARTPTS,atempo={tempo:.3f},adelay={int(at*1000)}|{int(at*1000)}[v{k}]')
     labels.append(f'[v{k}]')
-fc = ';'.join(parts) + f';{"".join(labels)}amix=inputs={len(labels)}:normalize=0,aformat=channel_layouts=stereo:sample_rates=48000,highpass=f=70,acompressor=threshold=0.2:ratio=3:attack=5:release=120,volume=1.3,apad=whole_dur=30,asplit[vo][sc];' \
-     '[2:a][sc]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=350[bed];' \
+fc = ';'.join(parts) + f';{"".join(labels)}amix=inputs={len(labels)}:normalize=0,aformat=channel_layouts=stereo:sample_rates=48000,highpass=f=70,acompressor=threshold=0.2:ratio=3:attack=5:release=120,volume=2.2,apad=whole_dur=30,asplit[vo][sc];' \
+     '[2:a]volume=0.6[bedq];[bedq][sc]sidechaincompress=threshold=0.015:ratio=10:attack=10:release=400[bed];' \
      '[bed][vo]amix=inputs=2:normalize=0,afade=t=out:st=29.75:d=0.25,loudnorm=I=-14:TP=-1.0:LRA=11[a]'
 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', video, '-i', vo, '-i', bed, '-filter_complex', fc,
                 '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
