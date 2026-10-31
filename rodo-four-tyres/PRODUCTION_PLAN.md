@@ -8,7 +8,7 @@
 
 1. **Reference stills first.** One hero SUV (pearl white, no badges) and one Malayali family are generated as photoreal stills. Every scene's start frame is made *from* these references, so the same SUV, the same tyre design and the same family appear in every shot.
 2. **AI video per scene.** Each scene is generated as an image-to-video clip from its start frame. Where a move must land exactly (tyres separating, tyres returning), the clip gets both a start frame and an end frame.
-3. **Text, graphics and logo are added in the edit, not by the AI.** This keeps every word spelled correctly, keeps the typography crisp, and leaves a clean space for the official RODO logo.
+3. **Text, graphics and logo are added in the edit, not by the AI.** This keeps every word spelled correctly and the typography crisp. The official RODO logo (`brand/rodo_logo_original.png`) is cut into layers by `brand/extract.py` and animated by `overlay.html`. `RODO_Logo_Reveal_Preview.mp4` shows the last 5 seconds on a stand-in studio background. Add `?brand=dark` to keep the ending on black with a white emblem instead of the yellow brand plate.
 4. **Sound is built separately:** an original cinematic score, sound design timed to the picture (engine start, freeze, metal locking, rain, landing impact, logo hit), and a voice-over.
 
 ## Shot list
@@ -22,7 +22,7 @@
 | 19.0–24.0 | **5 · The responsibility** | Three quick shots, about 1.7 s each: ① monsoon-wet Kerala road with spray from the tyres ② the SUV holding a hairpin bend on a Munnar ghat road ③ a smooth, controlled stop on a dry road. | 01 WET ROADS · 02 CORNERING · 03 BRAKING | — |
 | 24.0–30.0 | **6 · The reunion** | The four tyres glide back and lock onto their wheels with precision. The studio dissolves back into the Kerala road and the SUV settles onto the asphalt with a deep bass impact. *(start frame: tyres apart · end frame: SUV complete)* | — | — |
 | 30.0–35.0 | **7 · The ending** | Camera follows the SUV from behind towards a golden Kerala sunset. Through the rear glass the children turn to each other, laughing. Warm flare. | *FOUR TYRES. ONE RESPONSIBILITY.* | "Four tyres. One responsibility." |
-| 35.0–40.0 | **8 · Brand reveal** | Black studio. One premium tyre turns slowly under a rim light with metallic reflections on the alloy. | *CHOOSE QUALITY. DRIVE WITH CONFIDENCE.* → RODO logo · TYRES & ACCESSORIES · ERNAKULAM, KERALA | "Choose quality. Drive with confidence. RODO Tyres and Accessories, Ernakulam." |
+| 35.0–40.0 | **8 · Brand reveal** | Black studio. One premium tyre turns slowly under a rim light with metallic reflections on the alloy. Then the official RODO logo builds: its two tyre O's roll in together like a car's rear and front wheels and settle into the wordmark, R and D rise, the R emblem sweeps in, and the brand yellow floods the frame with a bass hit and a light sweep across the logo. | *CHOOSE QUALITY. DRIVE WITH CONFIDENCE.* → official RODO logo · TYRES & ACCESSORIES · ERNAKULAM, KERALA | "Choose quality. Drive with confidence. RODO Tyres and Accessories, Ernakulam." |
 
 ## Continuity rules given to every generation
 

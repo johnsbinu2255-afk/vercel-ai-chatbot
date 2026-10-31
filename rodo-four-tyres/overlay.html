@@ -19,7 +19,7 @@
    renderFrame(t) is deterministic. ?preview draws placeholder backgrounds.
    ========================================================================= */
 const W = 1080, H = 1920, CX = W / 2;
-const RED = '#e3262f', WHITE = '#ffffff', SILVER = '#d7dbe0';
+const RED = '#dc0201', WHITE = '#ffffff', SILVER = '#d7dbe0';
 const DISPLAY = '"Inter Display", "Inter", Arial, sans-serif';
 const MONO = '"JetBrains Mono", monospace';
 
@@ -31,8 +31,22 @@ const LAYOUT = { titleY: 700, brandTextY: 760, logoY: 860, ctaY: 1250 };
 const out = document.getElementById('out');
 const c = out.getContext('2d');
 const PREVIEW = location.search.includes('preview');
-let LOGO = null;                       // optional official logo: logo.png next to this file
-{ const img = new Image(); img.onload = () => { LOGO = img; }; img.src = 'logo.png'; }
+const CLEAN = location.search.includes('clean');   // dark studio stand-in, no labels
+// Official RODO logo, cut into layers by brand/extract.py
+const BRAND_MODE = new URLSearchParams(location.search).get('brand') || 'yellow';   // 'yellow' | 'dark'
+const YELLOW = '#fed505', BRAND_RED = '#b80101', BRAND_BLACK = '#0b0b0b';
+const IMG = {};
+window.assetsReady = Promise.all(['tyre_O1', 'tyre_O2', 'word_R', 'word_D', 'emblem', 'emblem_reverse'].map(n => new Promise(res => {
+  const im = new Image(); im.onload = () => { IMG[n] = im; res(); }; im.onerror = () => res(); im.src = 'brand/' + n + '.png';
+})));
+// Logo-space positions (pixels in brand/rodo_logo_original.png) from brand/layout.json
+const LOGO_POS = { emblem: [515, 85], word_R: [95, 535], word_D: [755, 535], tyre_O1: [388, 521], tyre_O2: [1073, 521] };
+const TYRE_C = { tyre_O1: [569.5, 703, 177.5], tyre_O2: [1255, 703, 177.5] };
+const LOGO_ANCHOR = [766.5, 480], LOGO_SCALE = 0.66, LOGO_AT = [540, 880];   // logo point -> frame point
+const lx = x => LOGO_AT[0] + (x - LOGO_ANCHOR[0]) * LOGO_SCALE;
+const ly = y => LOGO_AT[1] + (y - LOGO_ANCHOR[1]) * LOGO_SCALE;
+const logoBuf = document.createElement('canvas'); logoBuf.width = W; logoBuf.height = H;
+const lc = logoBuf.getContext('2d');
 
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, k) => a + (b - a) * k;
@@ -133,42 +147,117 @@ function title(t, a, b, str, y, size, weight = 600, track = 14, color = WHITE) {
   c.restore();
 }
 
-function brandLockup(t, a) {
-  if (t < a) return;
-  const k = eOut(prog(t, a, a + .9));
-  const y = LAYOUT.logoY;
-  c.save(); c.globalAlpha = k; c.textAlign = 'center';
-  if (LOGO) {                                   // official logo, if provided
-    const w = 640, h = w * LOGO.height / LOGO.width;
-    c.drawImage(LOGO, CX - w / 2, y - h / 2 - 40, w, h);
-  } else {                                      // placeholder wordmark
-    const tr = lerp(60, 34, eOut(prog(t, a, a + 1.4)));
-    setFont(190, 800, DISPLAY, tr);
-    soft(() => {
-      const g = c.createLinearGradient(0, y - 150, 0, y + 10);
-      g.addColorStop(0, '#ffffff'); g.addColorStop(.55, '#e9ecef'); g.addColorStop(1, '#9aa1aa');
-      c.fillStyle = g; c.fillText('RODO', CX + tr / 2, y);
-    }, 1.2);
-    // light sweep across the wordmark
-    const sp = prog(t, a + .5, a + 1.6);
-    if (sp > 0 && sp < 1) {
-      c.save(); c.globalCompositeOperation = 'lighter';
-      const sx = lerp(CX - 420, CX + 420, sp);
-      const sg = c.createLinearGradient(sx - 70, 0, sx + 70, 0);
-      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-      c.fillStyle = sg; c.fillText('RODO', CX + tr / 2, y); c.restore();
+// ---------- RODO logo animation ----------
+// The two tyre O's roll in together like a car's rear and front wheels, settle into the wordmark,
+// then R and D rise, the emblem sweeps in, and (yellow mode) the brand yellow floods the frame.
+function drawTyre(ctx, name, x, y, ang, blur) {
+  const im = IMG[name]; if (!im) return;
+  const r = TYRE_C[name][2] * LOGO_SCALE, w = im.width * LOGO_SCALE, h = im.height * LOGO_SCALE;
+  const n = blur > .02 ? 5 : 1;
+  for (let i = 0; i < n; i++) {
+    const k = n === 1 ? 0 : i / (n - 1) - .5;
+    ctx.save(); ctx.globalAlpha *= n === 1 ? 1 : (i === Math.floor(n / 2) ? 1 : .35);
+    ctx.translate(x, y); ctx.rotate(ang + k * blur); ctx.drawImage(im, -w / 2, -h / 2, w, h); ctx.restore();
+  }
+  return r;
+}
+
+function brandLogo(t, a) {
+  if (t < a || !IMG.tyre_O1) return;
+  const yellow = BRAND_MODE === 'yellow';
+  // timings
+  const rollEnd = a + .85, letters = a + .7, emblemT = a + .85, floodT = a + .95, textT = a + 1.2;
+
+  // --- yellow flood behind everything (drawn on the main canvas first) ---
+  let flood = 0;
+  if (yellow) {
+    flood = eIO(prog(t, floodT, floodT + .45));
+    if (flood > 0) {
+      const cx = CX, cy = ly(703), R = Math.hypot(W, H) * flood;
+      c.save();
+      c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
+      const g = c.createRadialGradient(CX, ly(600), 100, CX, ly(600), H * .85);
+      g.addColorStop(0, '#ffe23a'); g.addColorStop(.6, YELLOW); g.addColorStop(1, '#e8bd00');
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      c.restore();
+      // bright leading edge of the flood
+      if (flood < 1) {
+        c.save(); c.globalCompositeOperation = 'lighter'; c.strokeStyle = `rgba(255,250,210,${.8 * (1 - flood)})`;
+        c.lineWidth = 60; c.filter = 'blur(18px)'; c.beginPath(); c.arc(cx, cy, R, 0, 7); c.stroke(); c.restore();
+      }
     }
   }
-  // red rule + descriptor
-  const r = eOut(prog(t, a + .4, a + 1.1));
-  c.fillStyle = RED; c.fillRect(CX - 170 * r, y + 50, 340 * r, 4);
-  c.globalAlpha = k * prog(t, a + .5, a + 1.1);
-  setFont(40, 500, DISPLAY, 12); c.fillStyle = WHITE;
-  soft(() => c.fillText('TYRES & ACCESSORIES', CX + 6, y + 125));
-  // location
-  c.globalAlpha = k * prog(t, a + .9, a + 1.5);
-  setFont(30, 400, DISPLAY, 10); c.fillStyle = SILVER;
-  soft(() => c.fillText('ERNAKULAM, KERALA', CX + 5, y + 190));
+
+  // --- build the logo on its own layer so the light sweep can be clipped to it ---
+  lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, W, H); lc.globalAlpha = 1; lc.globalCompositeOperation = 'source-over';
+  const D = 1350 * (1 - eOut(prog(t, a, rollEnd)));             // distance still to travel
+  const speed = 1350 * 3 * Math.pow(1 - prog(t, a, rollEnd), 2) / (rollEnd - a);   // px/s (derivative of eOut)
+  const settle = Math.sin(prog(t, rollEnd, rollEnd + .35) * Math.PI) * 4 * (1 - prog(t, rollEnd, rollEnd + .35));
+  ['tyre_O1', 'tyre_O2'].forEach(n => {
+    const [cx, cy, r] = TYRE_C[n];
+    const x = lx(cx) - D, y = ly(cy) - settle;
+    const rr = r * LOGO_SCALE;
+    const ang = -D / rr;                                          // rolling without slipping
+    // floor reflection while on the dark stage
+    if (flood < 1) {
+      lc.save(); lc.globalAlpha = .22 * (1 - flood); lc.translate(0, 2 * (ly(cy) + rr)); lc.scale(1, -1);
+      drawTyre(lc, n, x, y, -ang, speed / 4000); lc.restore();
+    }
+    drawTyre(lc, n, x, y, ang, Math.min(.6, speed / 3000));
+  });
+  // R and D rise out of the baseline
+  [['word_R', 0], ['word_D', .08]].forEach(([n, dl]) => {
+    const im = IMG[n]; if (!im) return;
+    const k = eOut(prog(t, letters + dl, letters + dl + .35));
+    if (k <= 0) return;
+    const [x0, y0] = LOGO_POS[n], w = im.width * LOGO_SCALE, h = im.height * LOGO_SCALE;
+    const X = lx(x0), Y = ly(y0);
+    lc.save(); lc.beginPath(); lc.rect(X - 10, Y - 10, w + 20, h + 12); lc.clip();
+    lc.drawImage(im, X, Y + (1 - k) * h, w, h); lc.restore();
+  });
+  // emblem: wipes in left-to-right (the direction of its red swoosh)
+  const ek = eOut(prog(t, emblemT, emblemT + .5));
+  if (ek > 0) {
+    const [x0, y0] = LOGO_POS.emblem, im = IMG.emblem, w = im.width * LOGO_SCALE, h = im.height * LOGO_SCALE;
+    const X = lx(x0), Y = ly(y0), sc = lerp(.9, 1, ek);
+    lc.save(); lc.beginPath(); lc.rect(X - 20, Y - 20, (w + 40) * ek, h + 40); lc.clip();
+    lc.translate(X + w / 2, Y + h / 2); lc.scale(sc, sc);
+    // white-on-dark version until the yellow arrives, then the logo exactly as supplied
+    if (yellow) {
+      lc.globalAlpha = 1 - flood; lc.drawImage(IMG.emblem_reverse, -w / 2, -h / 2, w, h);
+      lc.globalAlpha = flood; lc.drawImage(im, -w / 2, -h / 2, w, h);
+    } else lc.drawImage(IMG.emblem_reverse, -w / 2, -h / 2, w, h);
+    lc.restore();
+  }
+  // metallic light sweep across the finished logo
+  const sp = prog(t, textT + .1, textT + .9);
+  if (sp > 0 && sp < 1) {
+    lc.save(); lc.globalCompositeOperation = 'source-atop';
+    const sx = lerp(-300, W + 300, eIO(sp));
+    const sg = lc.createLinearGradient(sx - 120, 0, sx + 120, 0);
+    sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.45)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    lc.fillStyle = sg; lc.setTransform(1, 0, -.35, 1, 0, 0); lc.fillRect(-W, 0, W * 3, H); lc.restore();
+  }
+  // soft shadow on yellow, faint glow on dark
+  c.save();
+  if (yellow && flood > .5) { c.shadowColor = 'rgba(80,50,0,.35)'; c.shadowBlur = 30; c.shadowOffsetY = 10; }
+  else { c.shadowColor = 'rgba(255,255,255,.12)'; c.shadowBlur = 24; }
+  c.drawImage(logoBuf, 0, 0); c.restore();
+
+  // --- name + location ---
+  const tk = eOut(prog(t, textT, textT + .45)), lk = eOut(prog(t, textT + .25, textT + .7));
+  const baseY = ly(881);
+  c.save(); c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  c.globalAlpha = tk;
+  c.fillStyle = yellow ? BRAND_BLACK : WHITE;
+  setFont(46, 800, DISPLAY, 11);
+  c.fillText('TYRES & ACCESSORIES', CX + 5, baseY + 95 + (1 - tk) * 20);
+  c.globalAlpha = lk;
+  c.fillStyle = yellow ? BRAND_RED : RED;
+  c.fillRect(CX - 150 * lk, baseY + 128, 300 * lk, 4);
+  c.fillStyle = yellow ? BRAND_BLACK : SILVER;
+  setFont(34, 600, DISPLAY, 9);
+  c.fillText('ERNAKULAM, KERALA', CX + 4, baseY + 190 + (1 - lk) * 16);
   c.restore();
 }
 
@@ -177,6 +266,14 @@ const SCENE_NAMES = [[S.family, '1 · THE FAMILY', '#3a2a1c'], [S.journey, '2 ·
   [S.engineering, '4 · THE ENGINEERING', '#121418'], [S.responsibility, '5 · THE RESPONSIBILITY', '#1d2a33'], [S.reunion, '6 · THE REUNION', '#0f0f12'],
   [S.ending, '7 · THE ENDING', '#5a3418'], [S.brand, '8 · BRAND REVEAL', '#050505']];
 function previewBg(t) {
+  if (CLEAN) {                                    // stand-in for the black studio clip
+    const g = c.createRadialGradient(CX, 900, 60, CX, 900, 1100);
+    g.addColorStop(0, '#2a2b2f'); g.addColorStop(.55, '#111214'); g.addColorStop(1, '#030303');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const fl = c.createLinearGradient(0, 1150, 0, H); fl.addColorStop(0, 'rgba(255,255,255,.05)'); fl.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = fl; c.fillRect(0, 1150, W, H - 1150);
+    return;
+  }
   const sc = [...SCENE_NAMES].reverse().find(s => t >= s[0]);
   const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, sc[2]); g.addColorStop(1, '#000');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
@@ -220,7 +317,7 @@ window.renderFrame = function (t) {
   // 8: brand
   title(t, 35.4, 37.6, 'CHOOSE QUALITY.', LAYOUT.titleY + 40, 62, 600, 12);
   title(t, 35.9, 37.6, 'DRIVE WITH CONFIDENCE.', LAYOUT.titleY + 125, 52, 400, 10, SILVER);
-  brandLockup(t, 37.5);
+  brandLogo(t, 37.3);
 
   // fade the whole layer with the picture at the very end
   const fo = prog(t, 39.6, 40);
