@@ -1,0 +1,236 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RODO Four Tyres Overlay</title>
+<style>
+  html, body { margin: 0; background: #111; }
+  canvas { display: block; width: 360px; height: 640px; }
+  body.render { background: transparent; }
+  body.render canvas { width: 1080px; height: 1920px; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script>
+/* =========================================================================
+   "FOUR TYRES. ONE RESPONSIBILITY." — typography + graphics layer.
+   Drawn on a transparent canvas and composited over the AI footage.
+   renderFrame(t) is deterministic. ?preview draws placeholder backgrounds.
+   ========================================================================= */
+const W = 1080, H = 1920, CX = W / 2;
+const RED = '#e3262f', WHITE = '#ffffff', SILVER = '#d7dbe0';
+const DISPLAY = '"Inter Display", "Inter", Arial, sans-serif';
+const MONO = '"JetBrains Mono", monospace';
+
+// Scene boundaries (seconds) — keep in sync with assemble.py
+const S = { family: 0, journey: 5, tyres: 9, engineering: 14, responsibility: 19, reunion: 24, ending: 30, brand: 35, end: 40 };
+// Logo lockup layout (can be moved once the brand clip is known)
+const LAYOUT = { titleY: 700, brandTextY: 760, logoY: 860, ctaY: 1250 };
+
+const out = document.getElementById('out');
+const c = out.getContext('2d');
+const PREVIEW = location.search.includes('preview');
+let LOGO = null;                       // optional official logo: logo.png next to this file
+{ const img = new Image(); img.onload = () => { LOGO = img; }; img.src = 'logo.png'; }
+
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = k => 1 - Math.pow(1 - k, 3);
+const eIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+
+// in/out envelope: rises over `fi`, holds, falls over `fo`
+const env = (t, a, b, fi = .5, fo = .5) => Math.min(eOut(prog(t, a, a + fi)), 1 - eIO(prog(t, b - fo, b)));
+
+function setFont(size, weight = 300, family = DISPLAY, track = 0) {
+  c.font = `${weight} ${size}px ${family}`;
+  c.letterSpacing = track + 'px';
+}
+
+// Soft shadow so white type reads over bright footage without looking boxed-in
+function soft(fn, strength = 1) {
+  c.save(); c.shadowColor = `rgba(0,0,0,${.55 * strength})`; c.shadowBlur = 28; fn(); c.restore();
+}
+
+// A sentence made of runs with different weights, e.g. [["Your car carries your ",300],["family",600],[".",300]]
+function runs(parts, y, size, a, rise, track = 0) {
+  const widths = parts.map(([s, w]) => { setFont(size, w, DISPLAY, track); return c.measureText(s).width; });
+  let x = CX - widths.reduce((p, q) => p + q, 0) / 2;
+  c.save(); c.globalAlpha = a; c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+  parts.forEach(([s, w], i) => {
+    setFont(size, w, DISPLAY, track);
+    soft(() => { c.fillStyle = WHITE; c.fillText(s, x, y + rise); });
+    x += widths[i];
+  });
+  c.restore();
+}
+
+// Hook line with a thin red rule that draws first, text rising into place
+function hookLine(t, a, b, parts, y) {
+  if (t < a - .1 || t > b + .1) return;
+  const k = env(t, a, b, .7, .6);
+  const rule = eOut(prog(t, a - .1, a + .5)) * (1 - eIO(prog(t, b - .6, b)));
+  c.save();
+  c.fillStyle = RED; c.globalAlpha = rule;
+  c.fillRect(CX - 40 * rule, y - 92, 80 * rule, 3);
+  c.restore();
+  runs(parts, y, 58, k, (1 - eOut(prog(t, a, a + .9))) * 26, .5);
+}
+
+// Small technical callout: dot, leader line drawn on, label + caption
+function callout(t, a, b, x0, y0, x1, y1, label, sub, align = 'left') {
+  if (t < a || t > b + .1) return;
+  const k = env(t, a, b, .5, .4);
+  const line = eOut(prog(t, a, a + .45));
+  c.save(); c.globalAlpha = k;
+  // target ring
+  c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 2;
+  c.beginPath(); c.arc(x0, y0, 10 + 4 * Math.sin(t * 4), 0, 7); c.stroke();
+  c.fillStyle = RED; c.beginPath(); c.arc(x0, y0, 4.5, 0, 7); c.fill();
+  // leader: diagonal then horizontal
+  const mx = lerp(x0, x1, .35), my = y1;
+  c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(x0, y0);
+  const seg1 = Math.hypot(mx - x0, my - y0), seg2 = Math.abs(x1 - mx), L = (seg1 + seg2) * line;
+  if (L <= seg1) c.lineTo(lerp(x0, mx, L / seg1), lerp(y0, my, L / seg1));
+  else { c.lineTo(mx, my); c.lineTo(lerp(mx, x1, (L - seg1) / seg2), my); }
+  c.stroke();
+  // text
+  const tk = prog(t, a + .3, a + .7);
+  c.globalAlpha = k * tk; c.textAlign = align; c.textBaseline = 'alphabetic';
+  setFont(30, 600, MONO, 3); c.fillStyle = WHITE;
+  soft(() => c.fillText(label, x1, y1 - 14), .8);
+  setFont(31, 300, DISPLAY, .3); c.fillStyle = SILVER;
+  soft(() => c.fillText(sub, x1, y1 + 30), .8);
+  c.restore();
+}
+
+// Numbered environment tag for the three road shots
+function envTag(t, a, b, num, label) {
+  if (t < a || t > b) return;
+  const k = env(t, a, b, .25, .25);
+  const x = 84, y = 1440;
+  c.save(); c.globalAlpha = k;
+  const slide = (1 - eOut(prog(t, a, a + .4))) * -30;
+  c.translate(slide, 0);
+  setFont(30, 500, MONO, 2); c.fillStyle = RED; c.textAlign = 'left';
+  soft(() => c.fillText(num, x, y));
+  c.fillStyle = 'rgba(255,255,255,.8)'; c.fillRect(x + 62, y - 11, 56 * eOut(prog(t, a, a + .4)), 2);
+  setFont(40, 600, DISPLAY, 6); c.fillStyle = WHITE;
+  soft(() => c.fillText(label, x + 134, y + 3));
+  c.restore();
+}
+
+// Large tracked-out uppercase line used for the end titles
+function title(t, a, b, str, y, size, weight = 600, track = 14, color = WHITE) {
+  if (t < a || t > b + .1) return;
+  const k = env(t, a, b, .8, .5);
+  const tr = lerp(track * 1.8, track, eOut(prog(t, a, a + 1.2)));
+  c.save(); c.globalAlpha = k; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  setFont(size, weight, DISPLAY, tr);
+  soft(() => { c.fillStyle = color; c.fillText(str, CX + tr / 2, y); });
+  c.restore();
+}
+
+function brandLockup(t, a) {
+  if (t < a) return;
+  const k = eOut(prog(t, a, a + .9));
+  const y = LAYOUT.logoY;
+  c.save(); c.globalAlpha = k; c.textAlign = 'center';
+  if (LOGO) {                                   // official logo, if provided
+    const w = 640, h = w * LOGO.height / LOGO.width;
+    c.drawImage(LOGO, CX - w / 2, y - h / 2 - 40, w, h);
+  } else {                                      // placeholder wordmark
+    const tr = lerp(60, 34, eOut(prog(t, a, a + 1.4)));
+    setFont(190, 800, DISPLAY, tr);
+    soft(() => {
+      const g = c.createLinearGradient(0, y - 150, 0, y + 10);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(.55, '#e9ecef'); g.addColorStop(1, '#9aa1aa');
+      c.fillStyle = g; c.fillText('RODO', CX + tr / 2, y);
+    }, 1.2);
+    // light sweep across the wordmark
+    const sp = prog(t, a + .5, a + 1.6);
+    if (sp > 0 && sp < 1) {
+      c.save(); c.globalCompositeOperation = 'lighter';
+      const sx = lerp(CX - 420, CX + 420, sp);
+      const sg = c.createLinearGradient(sx - 70, 0, sx + 70, 0);
+      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = sg; c.fillText('RODO', CX + tr / 2, y); c.restore();
+    }
+  }
+  // red rule + descriptor
+  const r = eOut(prog(t, a + .4, a + 1.1));
+  c.fillStyle = RED; c.fillRect(CX - 170 * r, y + 50, 340 * r, 4);
+  c.globalAlpha = k * prog(t, a + .5, a + 1.1);
+  setFont(40, 500, DISPLAY, 12); c.fillStyle = WHITE;
+  soft(() => c.fillText('TYRES & ACCESSORIES', CX + 6, y + 125));
+  // location
+  c.globalAlpha = k * prog(t, a + .9, a + 1.5);
+  setFont(30, 400, DISPLAY, 10); c.fillStyle = SILVER;
+  soft(() => c.fillText('ERNAKULAM, KERALA', CX + 5, y + 190));
+  c.restore();
+}
+
+// ---------- preview backgrounds (placeholders until the AI clips exist) ----------
+const SCENE_NAMES = [[S.family, '1 · THE FAMILY', '#3a2a1c'], [S.journey, '2 · THE JOURNEY', '#1f3a24'], [S.tyres, '3 · THE FOUR TYRES', '#0d0d10'],
+  [S.engineering, '4 · THE ENGINEERING', '#121418'], [S.responsibility, '5 · THE RESPONSIBILITY', '#1d2a33'], [S.reunion, '6 · THE REUNION', '#0f0f12'],
+  [S.ending, '7 · THE ENDING', '#5a3418'], [S.brand, '8 · BRAND REVEAL', '#050505']];
+function previewBg(t) {
+  const sc = [...SCENE_NAMES].reverse().find(s => t >= s[0]);
+  const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, sc[2]); g.addColorStop(1, '#000');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(255,255,255,.25)'; setFont(28, 600, MONO, 2); c.textAlign = 'left';
+  c.fillText(sc[1] + '  ·  ' + t.toFixed(1) + 's', 60, 90);
+  // reels UI safe zones
+  c.fillStyle = 'rgba(255,0,0,.08)'; c.fillRect(0, H - 380, W, 380); c.fillRect(W - 140, 900, 140, 640);
+}
+
+window.renderFrame = function (t) {
+  c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, W, H);
+  if (PREVIEW) previewBg(t);
+
+  // 1–2: the hook, in two lines
+  hookLine(t, 1.0, 4.7, [['Your car carries your ', 300], ['family', 600], ['.', 300]], 1380);
+  hookLine(t, 5.6, 8.8, [['Your ', 300], ['tyres', 600], [' carry your car.', 300]], 1380);
+
+  // 4: engineering callouts + the contact-patch fact
+  callout(t, 14.5, 18.7, 330, 760, 120, 560, 'TREAD PATTERN', 'Grooves channel water away');
+  callout(t, 15.3, 18.7, 760, 1060, 600, 1240, 'SIPES', 'Thousands of edges for grip', 'left');
+  callout(t, 16.1, 18.7, 520, 1180, 120, 1370, 'CONTACT PATCH', 'The only part that touches the road');
+  if (t > 16.8 && t < 18.9) {
+    const k = env(t, 16.8, 18.9, .6, .4);
+    c.save(); c.globalAlpha = k; c.textAlign = 'center';
+    setFont(44, 300, DISPLAY, .4); c.fillStyle = WHITE;
+    soft(() => c.fillText('Each tyre meets the road', CX, 330));
+    soft(() => c.fillText('with a patch the size of your palm.', CX, 392));
+    c.restore();
+  }
+
+  // 5: three road environments
+  envTag(t, 19.15, 20.75, '01', 'WET ROADS');
+  envTag(t, 20.8, 22.4, '02', 'CORNERING');
+  envTag(t, 22.45, 24.0, '03', 'BRAKING');
+
+  // 7: the line the whole film builds to
+  title(t, 31.6, 35.0, 'FOUR TYRES.', LAYOUT.titleY, 92, 600, 16);
+  title(t, 32.4, 35.0, 'ONE RESPONSIBILITY.', LAYOUT.titleY + 110, 66, 400, 14, SILVER);
+
+  // 8: brand
+  title(t, 35.4, 37.6, 'CHOOSE QUALITY.', LAYOUT.titleY + 40, 62, 600, 12);
+  title(t, 35.9, 37.6, 'DRIVE WITH CONFIDENCE.', LAYOUT.titleY + 125, 52, 400, 10, SILVER);
+  brandLockup(t, 37.5);
+
+  // fade the whole layer with the picture at the very end
+  const fo = prog(t, 39.6, 40);
+  if (fo > 0 && PREVIEW) { c.fillStyle = `rgba(0,0,0,${fo})`; c.fillRect(0, 0, W, H); }
+};
+
+if (!location.search.includes('render')) {
+  const start = performance.now();
+  (function loop() { renderFrame(((performance.now() - start) / 1000) % 40); requestAnimationFrame(loop); })();
+} else { document.body.classList.add('render'); }
+</script>
+</body>
+</html>
