@@ -41,7 +41,7 @@ Record (or generate) the full script as **one take, with a clear pause between e
 python3 add_vo.py vo.mp3 video_silent.mp4 sfx_music.wav RODO_Wheel_Alignment_Reel.mp4
 ```
 
-The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.35s, 3.45s, 9.45s, 15.45s, 21.35s, 25.35s and 26.75s). It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
+The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.35s, 3.45s, 9.45s, 15.45s, 21.2s, 24.55s and 26.15s), speeding a line up slightly (at most 1.25×) only if it would run into the next one. It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
 
 ## Instagram caption
 
