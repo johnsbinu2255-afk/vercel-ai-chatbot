@@ -35,6 +35,22 @@ voice (a deep male narrator blend, pitched down about 1 semitone).
 
 The lines total about 42 s of speech, which leaves room for music and sound-effect moments. When re-recording with a human voice artist, keep the start times above. Each line fits its window with 0.5–1.5 s to spare.
 
+
+### 2b. Malayalam voice-over (current version)
+
+The released video uses this Malayalam narration. It is generated offline with the male Piper voice "Arjun" by `scripts/voiceover_ml.py`. Start times are in `web/timeline.json`, and `"vo_prefix": "vo_ml_"` selects these files.
+
+| Starts | Line |
+|--------|------|
+| 0.35 s | നിങ്ങളുടെ ടയറുകൾ നിങ്ങളോട് ചില കാര്യങ്ങൾ പറയുന്നുണ്ട്. അത് ശ്രദ്ധിക്കേണ്ട സമയമാണ്. |
+| 7.45 s | ടയർ ട്രെഡിന്റെ തേയ്മാനം ശ്രദ്ധിക്കുക. ഗ്രിപ്പ് കുറയുന്നത്, പ്രത്യേകിച്ച് നനഞ്ഞ റോഡുകളിൽ, അപകടസാധ്യത വർധിപ്പിക്കും. |
+| 16.7 s | സൈഡ്‌വാൾ കേടുപാടുകൾ. ടയറിന്റെ വശങ്ങളിലുള്ള വിള്ളലുകൾ, മുറിവുകൾ, വീക്കങ്ങൾ എന്നിവ ഒരിക്കലും അവഗണിക്കരുത്. |
+| 26.6 s | അസമമായ ടയർ തേയ്മാനം. വീൽ അലൈൻമെന്റ്, ടയർ പ്രഷർ, സസ്പെൻഷൻ എന്നിവ പരിശോധിക്കുക. |
+| 36.5 s | പതിവായ പരിശോധന. ശരിയായ പരിപാലനം. വിദഗ്ധരുടെ ഫിറ്റിംഗ്. ശരിയായ ടയറുകൾ തിരഞ്ഞെടുക്കൂ, സുരക്ഷയിൽ ഒരിക്കലും വിട്ടുവീഴ്ച ചെയ്യരുത്. |
+| 49.5 s | നിങ്ങളുടെ ഓരോ യാത്രയും മികച്ച പരിചരണം അർഹിക്കുന്നു. സുരക്ഷിതമായി ഡ്രൈവ് ചെയ്യൂ. റോഡോ ടയേഴ്സ് സന്ദർശിക്കൂ. |
+
+On-screen text stays in English. The end screen now reads **RODO TYRES** with the CTA **VISIT RODO TYRES**. The tyre brands shown are JK TYRE · APOLLO · BRIDGESTONE · YOKOHAMA · MICHELIN · CEAT · MRF.
+
 ## 3. On-screen text, exact copy
 
 **Scene 1:** `⚠ SYSTEM ALERT · CHECK TYRES` (mono, typed) → `YOUR TYRES` / `ARE TRYING TO` / `TELL YOU` / **`SOMETHING.`** (red)
@@ -51,9 +67,9 @@ The lines total about 42 s of speech, which leaves room for music and sound-effe
 - `03/04 · PROFESSIONAL FITTING · SEATED · DONE ✓`
 - `04/04 · WHEEL BALANCING · 0 G · BALANCED ✓`
 
-Brands: `TYRES FROM` · `APOLLO · YOKOHAMA · BRIDGESTONE` · `CONTINENTAL · JK TYRE`. These are typeset only, with no logos, and imply no authorisation.
+Brands: `TYRES FROM` · `JK TYRE · APOLLO · BRIDGESTONE` · `YOKOHAMA · MICHELIN · CEAT · MRF`. These are typeset only, with no logos, and imply no authorisation.
 
-**Scene 6:** `YOUR JOURNEY` / `DESERVES` / **`BETTER CARE.`** → **`RODO`** (metallic) / `ACCESSORIES` / `DRIVE SAFE. DRIVE CONFIDENT.` / [`VISIT RODO ACCESSORIES`] / `TYRES · ACCESSORIES · INFOTAINMENT · AUDIO · CAR CARE`
+**Scene 6:** `YOUR JOURNEY` / `DESERVES` / **`BETTER CARE.`** → **`RODO`** (metallic) / `TYRES` / `DRIVE SAFE. DRIVE CONFIDENT.` / [`VISIT RODO TYRES`] / `TYRES · ACCESSORIES · INFOTAINMENT · AUDIO · CAR CARE`
 
 The reel invents no awards, certifications, warranties or claims of manufacturer authorisation. 35 PSI, 7.8 mm and the tyre size are illustrative readings only.
 

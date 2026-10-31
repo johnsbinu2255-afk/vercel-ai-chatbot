@@ -97,8 +97,8 @@ export class Texts {
     duo('PROPER', 'MAINTENANCE', 41.45, 46.05);
     duo('THE RIGHT', 'TYRES', 46.3, 48.85);
     add({ text: 'TYRES FROM', mode: 'type', cls: 'mono', in: 46.9, out: 48.85, css: center(1350, 22, { color: '#e3202a' }) });
-    add({ text: 'APOLLO · YOKOHAMA · BRIDGESTONE', mode: 'words', cls: 'hero', in: 47.0, out: 48.85, stagger: 0.12, css: center(1392, 38, { fontWeight: 700, letterSpacing: '0.08em' }) });
-    add({ text: 'CONTINENTAL · JK TYRE', mode: 'words', cls: 'hero', in: 47.35, out: 48.85, stagger: 0.12, css: center(1446, 38, { fontWeight: 700, letterSpacing: '0.08em' }) });
+    add({ text: 'JK TYRE · APOLLO · BRIDGESTONE', mode: 'words', cls: 'hero', in: 47.0, out: 48.85, stagger: 0.12, css: center(1392, 38, { fontWeight: 700, letterSpacing: '0.08em' }) });
+    add({ text: 'YOKOHAMA · MICHELIN · CEAT · MRF', mode: 'words', cls: 'hero', in: 47.3, out: 48.85, stagger: 0.1, css: center(1446, 38, { fontWeight: 700, letterSpacing: '0.08em' }) });
 
     // ---------------- SCENE 6 — brand
     add({ text: 'YOUR JOURNEY', mode: 'rise', cls: 'hero', in: 49.6, out: 52.85, css: center(1112, 108) });
@@ -106,10 +106,10 @@ export class Texts {
     add({ text: 'BETTER CARE.', mode: 'rise', cls: 'hero red', in: 50.9, out: 52.99, css: center(1344, 116) });
 
     add({ text: 'RODO', mode: 'track', cls: 'hero metal', in: 53.45, out: 99, sheen: true, ls: 0.16, css: center(905, 226, { letterSpacing: '0.16em', fontWeight: 900 }) });
-    add({ text: 'ACCESSORIES', mode: 'track', cls: 'hero', in: 53.85, out: 99, ls: 0.5, css: center(1142, 44, { letterSpacing: '0.5em', fontWeight: 600, color: '#c9ced6', textShadow: 'none' }) });
+    add({ text: 'TYRES', mode: 'track', cls: 'hero', in: 53.85, out: 99, ls: 0.5, css: center(1142, 44, { letterSpacing: '0.5em', fontWeight: 600, color: '#c9ced6', textShadow: 'none' }) });
     this.brandRule = mk(root, 'rule', '', { left: `${CX - 60}px`, top: '1222px', width: '120px', transformOrigin: 'center center' });
     add({ text: 'DRIVE SAFE. DRIVE CONFIDENT.', mode: 'words', cls: 'hero', in: 55.0, out: 99, stagger: 0.13, css: center(1262, 46, { fontWeight: 800, letterSpacing: '0.06em' }) });
-    add({ html: '<span class="pill">VISIT RODO ACCESSORIES</span>', text: 'VISIT', mode: 'pop', cls: '', in: 56.3, out: 99, fit: false, css: center(1352, 38) });
+    add({ html: '<span class="pill">VISIT RODO TYRES</span>', text: 'VISIT', mode: 'pop', cls: '', in: 56.3, out: 99, fit: false, css: center(1352, 38) });
     add({ text: 'TYRES  ·  ACCESSORIES  ·  INFOTAINMENT  ·  AUDIO  ·  CAR CARE', mode: 'fade', cls: 'mono', in: 56.9, out: 99, css: center(1490, 21, { color: '#9aa0a8', letterSpacing: '0.16em' }) });
   }
 

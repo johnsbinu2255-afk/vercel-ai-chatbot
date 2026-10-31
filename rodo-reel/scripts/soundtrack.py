@@ -334,10 +334,11 @@ vo = np.zeros((N, 2))
 vo_env = np.zeros(N)
 with tempfile.TemporaryDirectory() as tmp:
     for key, t0 in TL["voiceover"].items():
-        src = os.path.join(ROOT, "audio", f"vo_{key}.wav")
+        src = os.path.join(ROOT, "audio", f"{TL.get('vo_prefix', 'vo_')}{key}.wav")
         dst = os.path.join(tmp, f"{key}.wav")
         # ~1 semitone lower with duration preserved, low-mid warmth, presence, gentle compression
-        af = ("asetrate=24000*0.94,aresample=48000,atempo=1/0.94,"
+        src_sr = sf.info(src).samplerate
+        af = (f"asetrate={src_sr}*0.94,aresample=48000,atempo=1/0.94,"
               "highpass=f=70,equalizer=f=140:t=q:w=1:g=3,equalizer=f=3200:t=q:w=1.2:g=2.5,"
               "acompressor=threshold=-20dB:ratio=3:attack=5:release=120:makeup=2")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", af, "-ac", "1", "-ar", str(SR), dst], check=True)
@@ -355,9 +356,9 @@ vo_verb = np.stack([fftconv(vo[:, c], ir[:, c]) for c in range(2)], 1) * 0.05
 k = int(0.25 * SR)
 duck = np.convolve(vo_env, np.ones(k) / k, "same")
 music *= (1 - 0.6 * np.clip(duck, 0, 1))[:, None]
-sfx *= (1 - 0.4 * np.clip(duck, 0, 1))[:, None]
+sfx *= (1 - 0.25 * np.clip(duck, 0, 1))[:, None]
 
-bed = music * 0.45 + sfx * 0.55 + verb * 0.5
+bed = music * 0.45 + sfx * 1.0 + verb * 0.6
 voice = vo * 1.0 + vo_verb
 on = vo_env > 0
 rms = lambda a: 20 * np.log10(np.sqrt((a[on] ** 2).mean()) + 1e-9)
