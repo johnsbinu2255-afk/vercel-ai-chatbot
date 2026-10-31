@@ -1,4 +1,4 @@
-// Procedural tyre + alloy wheel models for the RODO ACCESSORIES reel.
+// Procedural tyre + alloy wheel models for the RODO TYRES reel.
 // Everything is generated in code (no external 3D assets) so renders are reproducible.
 import * as THREE from 'three';
 

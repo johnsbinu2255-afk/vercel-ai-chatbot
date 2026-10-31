@@ -1,4 +1,4 @@
-# RODO ACCESSORIES — "Your tyres are trying to tell you something."
+# RODO TYRES — "Your tyres are trying to tell you something."
 
 Premium automotive motion-graphics reel. Instagram Reels, 9:16, 1080 × 1920, 30 fps, 60 s, English.
 All picture is procedural 3D (Three.js) + kinetic typography + a technical HUD layer. Nobody appears on camera.
@@ -20,7 +20,7 @@ voice (a deep male narrator blend, pitched down about 1 semitone).
 | 3 | 16.0–26.0 | Wheel spins down and stops with damage at 2 o'clock. Inspection mode: viewfinder brackets, a red scan beam sweeps the sidewall (0–100 %), then **CRACK** is circled and **BULGE** is ringed (a real geometry bulge with an emissive crack) | Wide 3/4 view → push-in on the damage | Professional technical inspection |
 | 4 | 26.0–36.0 | **Top-down** tread view with a heat-map overlay. Three wear patterns morph in the geometry: one-sided edge (ALIGNMENT), both shoulders (INFLATION), cupping/patches (SUSPENSION). Each one lights its cause pill and red bracket | Overhead, slow descent, roll settles to 0° | Technical comparison |
 | 5 | 36.0–49.0 | White flash and light-sweep into a **bright hex-lit workshop** with a glossy floor. Five beats, each with a whip transition: 01 pressure check (valve callout, 0 → 35 PSI), 02 tread probe drops into a groove (7.8 mm), 03 the rim slides into the tyre (*clunk*, "SEATED"), 04 balancer spin with wobble damping out and a weight clipped on (18 g → 0 g, "BALANCED ✓"), then a hero roll of the new tyre | Varied: 3/4, macro, rear 3/4, face-on, low orbit | The solution, in a brighter mood |
-| 6 | 49.0–60.0 | Back to dark. Red halo and dust. Headline lines rise. Riser → **impact** → the camera pulls up and back, the wheel becomes the logo mark (a chrome ring with 72 ticks draws on and a red marker orbits), the metallic RODO wordmark tracks in with a sheen sweep, then ACCESSORIES, a red rule, the tagline, a CTA pill and the category line. Clean hold for the loop | Front 3/4 → crane up | Brand reveal |
+| 6 | 49.0–60.0 | Back to dark. Red halo and dust. Headline lines rise. Riser → **impact** → the camera pulls up and back, the wheel becomes the logo mark (a chrome ring with 72 ticks draws on and a red marker orbits), the metallic RODO wordmark tracks in with a sheen sweep, then TYRES, a red rule, the tagline, a CTA pill and the tyre-brand line. Clean hold for the loop | Front 3/4 → crane up | Brand reveal |
 
 ## 2. Voice-over script (deep, confident male voice, unhurried)
 
@@ -49,7 +49,7 @@ The released video uses this Malayalam narration. It is generated offline with t
 | 36.5 s | പതിവായ പരിശോധന. ശരിയായ പരിപാലനം. വിദഗ്ധരുടെ ഫിറ്റിംഗ്. ശരിയായ ടയറുകൾ തിരഞ്ഞെടുക്കൂ, സുരക്ഷയിൽ ഒരിക്കലും വിട്ടുവീഴ്ച ചെയ്യരുത്. |
 | 49.5 s | നിങ്ങളുടെ ഓരോ യാത്രയും മികച്ച പരിചരണം അർഹിക്കുന്നു. സുരക്ഷിതമായി ഡ്രൈവ് ചെയ്യൂ. റോഡോ ടയേഴ്സ് സന്ദർശിക്കൂ. |
 
-On-screen text stays in English. The end screen now reads **RODO TYRES** with the CTA **VISIT RODO TYRES**. The tyre brands shown are JK TYRE · APOLLO · BRIDGESTONE · YOKOHAMA · MICHELIN · CEAT · MRF.
+On-screen text stays in English. The end screen now reads **RODO TYRES** with the CTA **VISIT RODO TYRES**. The tyre brands shown are APOLLO · JK TYRE · YOKOHAMA · BRIDGESTONE · MRF · CEAT · CONTINENTAL · MICHELIN.
 
 ## 3. On-screen text, exact copy
 
@@ -67,9 +67,9 @@ On-screen text stays in English. The end screen now reads **RODO TYRES** with th
 - `03/04 · PROFESSIONAL FITTING · SEATED · DONE ✓`
 - `04/04 · WHEEL BALANCING · 0 G · BALANCED ✓`
 
-Brands: `TYRES FROM` · `JK TYRE · APOLLO · BRIDGESTONE` · `YOKOHAMA · MICHELIN · CEAT · MRF`. These are typeset only, with no logos, and imply no authorisation.
+Brands: `TYRES FROM` · `APOLLO · JK TYRE · YOKOHAMA · BRIDGESTONE` · `MRF · CEAT · CONTINENTAL · MICHELIN`. These are typeset only, with no logos, and imply no authorisation.
 
-**Scene 6:** `YOUR JOURNEY` / `DESERVES` / **`BETTER CARE.`** → **`RODO`** (metallic) / `TYRES` / `DRIVE SAFE. DRIVE CONFIDENT.` / [`VISIT RODO TYRES`] / `TYRES · ACCESSORIES · INFOTAINMENT · AUDIO · CAR CARE`
+**Scene 6:** `YOUR JOURNEY` / `DESERVES` / **`BETTER CARE.`** → **`RODO`** (metallic) / `TYRES` / `DRIVE SAFE. DRIVE CONFIDENT.` / [`VISIT RODO TYRES`] / `APOLLO · JK TYRE · YOKOHAMA · BRIDGESTONE · MRF · CEAT · CONTINENTAL · MICHELIN`
 
 The reel invents no awards, certifications, warranties or claims of manufacturer authorisation. 35 PSI, 7.8 mm and the tyre size are illustrative readings only.
 

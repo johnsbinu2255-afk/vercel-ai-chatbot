@@ -1,4 +1,4 @@
-// RODO ACCESSORIES — "Your tyres are trying to tell you something."
+// RODO TYRES — "Your tyres are trying to tell you something."
 // Deterministic motion-graphics timeline: window.renderFrame(t) draws the exact frame for time t (seconds).
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
