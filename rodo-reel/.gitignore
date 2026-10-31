@@ -1,0 +1,7 @@
+out/*
+!out/RODO_Tyres_Reel_1080x1920.mp4
+!out/RODO_Tyres_Reel_cover.jpg
+!out/RODO_Tyres_Reel_preview_720p.mp4
+audio/mix.wav
+audio/stem_*.wav
+__pycache__/
