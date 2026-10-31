@@ -42,7 +42,7 @@ Record (or generate) the full script as **one take, with a clear pause between e
 python3 add_vo.py vo.mp3 video_silent.mp4 sfx_music.wav RODO_Wheel_Alignment_Reel.mp4
 ```
 
-The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.25s, 3.25s, 8.4s, 13.3s, 18.55s, 23.0s and 25.15s) at natural speed. The scene boundaries in `reel.html` (`B`) and `sfx.py` (`S`) were timed to the Malayalam take, so each line plays over its own scene; a line is only sped up (at most 1.25×) if a new recording runs long. It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
+The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.4s, 3.4s, 8.5s, 13.4s, 18.6s, 22.85s and 24.65s) at natural speed, so each line plays over its own scene. If two lines run together (a pause shorter than 0.25s), pass the line times by hand as a 5th argument (see the top of `add_vo.py`); a line is only sped up (at most 1.25×) if a new recording runs long. It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
 
 ## Instagram caption
 

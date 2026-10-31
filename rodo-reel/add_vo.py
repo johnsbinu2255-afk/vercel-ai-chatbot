@@ -1,6 +1,8 @@
 """Mix a continuous voice-over take into the reel, line by line, synced to scenes.
 
-Usage: python3 add_vo.py vo.mp3 [video_silent.mp4] [sfx_music.wav] [out.mp4]
+Usage: python3 add_vo.py vo.mp3 [video_silent.mp4] [sfx_music.wav] [out.mp4] [LINES]
+LINES (optional) sets the 7 lines by hand when a pause is too short to detect,
+e.g. "0.49-3.2,3.67-6.04,6.4-9.47,9.82-12.68,13.02-15.27,15.59-17.33,17.54-22.63".
 The take is split on its pauses into the 7 script lines; each line is placed at
 its scene start and the music/SFX bed is ducked under the voice.
 """
@@ -10,10 +12,10 @@ video = sys.argv[2] if len(sys.argv) > 2 else 'video_silent.mp4'
 bed = sys.argv[3] if len(sys.argv) > 3 else 'sfx_music.wav'
 out = sys.argv[4] if len(sys.argv) > 4 else 'RODO_Wheel_Alignment_Reel.mp4'
 # scene start for each VO line (seconds)
-SLOTS = [0.25, 3.25, 8.4, 13.3, 18.55, 23.0, 25.15]
+SLOTS = [0.4, 3.4, 8.5, 13.4, 18.6, 22.85, 24.65]
 END = 29.95
 
-log = subprocess.run(['ffmpeg', '-i', vo, '-af', 'silencedetect=noise=-38dB:d=0.35', '-f', 'null', '-'],
+log = subprocess.run(['ffmpeg', '-i', vo, '-af', 'silencedetect=noise=-38dB:d=0.25', '-f', 'null', '-'],
                      capture_output=True, text=True).stderr
 starts = [float(x) for x in re.findall(r'silence_start: ([\d.]+)', log)]
 ends = [float(x) for x in re.findall(r'silence_end: ([\d.]+)', log)]
@@ -37,6 +39,8 @@ while len(regions) > len(SLOTS):
     i = gaps.index(min(gaps)); regions[i:i + 2] = [(regions[i][0], regions[i + 1][1])]
 if len(regions) < len(SLOTS):
     sys.exit(f'Found only {len(regions)} spoken lines; expected {len(SLOTS)}. Record with clear pauses between lines.')
+if len(sys.argv) > 5:
+    regions = [tuple(map(float, r.split('-'))) for r in sys.argv[5].split(',')]
 print('lines:', [(round(a, 2), round(b, 2)) for a, b in regions])
 parts, labels = [], []
 for k, ((a, b), at) in enumerate(zip(regions, SLOTS)):
@@ -47,7 +51,7 @@ for k, ((a, b), at) in enumerate(zip(regions, SLOTS)):
     labels.append(f'[v{k}]')
 fc = ';'.join(parts) + f';{"".join(labels)}amix=inputs={len(labels)}:normalize=0,aformat=channel_layouts=stereo:sample_rates=48000,highpass=f=70,acompressor=threshold=0.2:ratio=3:attack=5:release=120,volume=1.3,apad=whole_dur=30,asplit[vo][sc];' \
      '[2:a][sc]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=350[bed];' \
-     '[bed][vo]amix=inputs=2:normalize=0,afade=t=out:st=29.6:d=0.4,loudnorm=I=-14:TP=-1.0:LRA=11[a]'
+     '[bed][vo]amix=inputs=2:normalize=0,afade=t=out:st=29.75:d=0.25,loudnorm=I=-14:TP=-1.0:LRA=11[a]'
 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', video, '-i', vo, '-i', bed, '-filter_complex', fc,
                 '-map', '0:v', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
                 '-t', '30', '-movflags', '+faststart', out], check=True)
