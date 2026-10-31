@@ -20,7 +20,23 @@
    ========================================================= */
 const W = 1920, H = 1080;
 const DURATION = 5.0;
-const RED = '#ff1a1a', RED_DEEP = '#c00000', WHITE = '#f6f6f6';
+const RED = '#ff1a1a', RED_DEEP = '#c00000', WHITE = '#f6f6f6', YELLOW = '#ffc400';
+/* Colour themes: open with ?theme=yellow for the black / red / yellow version */
+const THEMES = {
+  red: {     // black / red / white (default)
+    R: RED, D: WHITE, sub: RED, tireText: WHITE, swoosh: RED, pin: RED_DEEP, rimLip: RED,
+    bladeA: '#ffffff', bladeB: '#9a9ca3', fin: RED, stripe: RED,
+    glowR: 'rgba(255,20,20,0.9)', glowD: 'rgba(0,0,0,0.6)', glowSub: 'rgba(255,20,20,0.9)',
+    tireGlow: '255,20,20', bg1: '150,10,10', bg2: '70,4,6', roadEdge: '255,30,30', speed: '255,40,40',
+  },
+  yellow: {  // black / red / yellow
+    R: RED, D: YELLOW, sub: YELLOW, tireText: YELLOW, swoosh: RED, pin: YELLOW, rimLip: YELLOW,
+    bladeA: '#fff3a0', bladeB: '#e0a800', fin: RED, stripe: RED,
+    glowR: 'rgba(255,20,20,0.9)', glowD: 'rgba(255,196,0,0.75)', glowSub: 'rgba(255,170,0,0.85)',
+    tireGlow: '255,150,0', bg1: '120,12,6', bg2: '45,8,4', roadEdge: '255,190,0', speed: '255,196,0',
+  },
+};
+const C = THEMES[new URLSearchParams(location.search).get('theme')] || THEMES.red;
 const FONT_FAMILY = 'Montserrat, "DejaVu Sans", sans-serif';
 const FONT_PX = 330;
 const LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
@@ -93,8 +109,8 @@ function drawBackground(t) {
   ctx.fillRect(0, 0, W, H);
   const pulse = 0.85 + 0.15 * clamp((t - 2.6) / 1.0);
   const g = ctx.createRadialGradient(W/2, ROAD_Y - 120, 40, W/2, ROAD_Y - 120, 1050);
-  g.addColorStop(0, `rgba(150,10,10,${0.75 * pulse})`);
-  g.addColorStop(0.45, `rgba(70,4,6,${0.6 * pulse})`);
+  g.addColorStop(0, `rgba(${C.bg1},${0.75 * pulse})`);
+  g.addColorStop(0.45, `rgba(${C.bg2},${0.6 * pulse})`);
   g.addColorStop(1, 'rgba(7,4,5,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
@@ -116,8 +132,8 @@ function drawRoad(t) {
   ctx.fillStyle = g;
   ctx.fillRect(0, ROAD_Y, W, H - ROAD_Y);
   const eg = ctx.createLinearGradient(0, ROAD_Y, 0, ROAD_Y + 70);
-  eg.addColorStop(0, 'rgba(255,30,30,0.22)');
-  eg.addColorStop(1, 'rgba(255,30,30,0)');
+  eg.addColorStop(0, `rgba(${C.roadEdge},0.22)`);
+  eg.addColorStop(1, `rgba(${C.roadEdge},0)`);
   ctx.fillStyle = eg;
   ctx.fillRect(0, ROAD_Y, W, 70);
   ctx.fillStyle = '#3b2a2d';
@@ -127,8 +143,8 @@ function drawRoad(t) {
   if (sp > 0) {
     const sw = (slots[3].x - slots[0].x + TIRE_R * 2.4) * easeInOut(sp);
     ctx.save();
-    ctx.shadowColor = RED; ctx.shadowBlur = 25;
-    ctx.fillStyle = RED;
+    ctx.shadowColor = C.stripe; ctx.shadowBlur = 25;
+    ctx.fillStyle = C.stripe;
     ctx.fillRect(W/2 - sw/2, ROAD_Y + 4, sw, 8);
     ctx.restore();
   }
@@ -163,7 +179,7 @@ function drawSpeedLines(i, t) {
   ctx.lineWidth = 5;
   const cy = ROAD_Y - TIRE_R;
   for (let k = -2; k <= 2; k++) {
-    ctx.strokeStyle = k % 2 ? `rgba(255,40,40,${0.55 * a})` : `rgba(255,255,255,${0.35 * a})`;
+    ctx.strokeStyle = k % 2 ? `rgba(${C.speed},${0.55 * a})` : `rgba(255,255,255,${0.35 * a})`;
     const len = 140 + 260 * a + (k % 2) * 60;
     const yy = cy + k * TIRE_R * 0.38;
     const x0 = x - TIRE_R - 25 - Math.abs(k) * 18;
@@ -207,7 +223,7 @@ function drawTire(cx, angle, glow) {
   ctx.translate(cx, cy);
   // red back-glow (flares when the tyre lands in place)
   ctx.save();
-  ctx.shadowColor = `rgba(255,20,20,${0.6 + 0.4 * glow})`;
+  ctx.shadowColor = `rgba(${C.tireGlow},${0.6 + 0.4 * glow})`;
   ctx.shadowBlur = 35 + 45 * glow;
   ctx.fillStyle = '#0d0d0f';
   ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
@@ -229,7 +245,7 @@ function drawTire(cx, angle, glow) {
   sg.addColorStop(0, '#1a1a1d'); sg.addColorStop(1, '#0c0c0e');
   ctx.fillStyle = sg;
   ctx.beginPath(); ctx.arc(0, 0, R * 0.88, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = RED_DEEP; ctx.lineWidth = 2;
+  ctx.strokeStyle = C.pin; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(0, 0, R * 0.875, 0, Math.PI * 2); ctx.stroke();
 
   // "RODO TYRES" twice around the sidewall, red swooshes between
@@ -239,13 +255,13 @@ function drawTire(cx, angle, glow) {
     const a0 = k * Math.PI;
     ctx.save();
     ctx.rotate(a0);
-    arcText(TIRE_TEXT, tr, 0, `italic 900 ${fpx}px ${FONT_FAMILY}`, WHITE, 1);
+    arcText(TIRE_TEXT, tr, 0, `italic 900 ${fpx}px ${FONT_FAMILY}`, C.tireText, 1);
     ctx.restore();
     // swoosh centred between the two labels
     const mid = a0 + Math.PI / 2 - Math.PI / 2;  // canvas arc angle for "right side" of this half
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = RED; ctx.lineWidth = Math.max(4, R * 0.05);
+    ctx.strokeStyle = C.swoosh; ctx.lineWidth = Math.max(4, R * 0.05);
     ctx.beginPath(); ctx.arc(0, 0, tr, mid - 0.3, mid + 0.3); ctx.stroke();
     ctx.restore();
   }
@@ -253,8 +269,8 @@ function drawTire(cx, angle, glow) {
   // rim lip
   const rr = R * 0.6;
   ctx.save();
-  ctx.shadowColor = RED; ctx.shadowBlur = 16;
-  ctx.strokeStyle = RED; ctx.lineWidth = 4;
+  ctx.shadowColor = C.rimLip; ctx.shadowBlur = 16;
+  ctx.strokeStyle = C.rimLip; ctx.lineWidth = 4;
   ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
   ctx.restore();
   // rim face
@@ -268,13 +284,13 @@ function drawTire(cx, angle, glow) {
     ctx.rotate(i * Math.PI / 5);
     if (i % 2 === 0) {
       const s = ctx.createLinearGradient(0, -rr, 0, 0);
-      s.addColorStop(0, '#ffffff'); s.addColorStop(1, '#9a9ca3');
+      s.addColorStop(0, C.bladeA); s.addColorStop(1, C.bladeB);
       ctx.fillStyle = s;
       ctx.beginPath();
       ctx.moveTo(-4, -rr * 0.2); ctx.lineTo(-10, -rr * 0.93); ctx.lineTo(4, -rr * 0.93); ctx.lineTo(5, -rr * 0.2);
       ctx.closePath(); ctx.fill();
     } else {
-      ctx.fillStyle = RED;
+      ctx.fillStyle = C.fin;
       ctx.beginPath();
       ctx.moveTo(0, -rr * 0.25); ctx.lineTo(-13, -rr * 0.88); ctx.lineTo(5, -rr * 0.78);
       ctx.closePath(); ctx.fill();
@@ -338,8 +354,8 @@ function drawLetter(ch, x, baseline, t0, t, font, fill, glowCol) {
 }
 
 function drawWord(t) {
-  drawLetter('R', slots[0].x, ROAD_Y, T.R, t, LETTER_FONT, RED, 'rgba(255,20,20,0.9)');
-  drawLetter('D', slots[2].x, ROAD_Y, T.D, t, LETTER_FONT, WHITE, 'rgba(0,0,0,0.6)');
+  drawLetter('R', slots[0].x, ROAD_Y, T.R, t, LETTER_FONT, C.R, C.glowR);
+  drawLetter('D', slots[2].x, ROAD_Y, T.D, t, LETTER_FONT, C.D, C.glowD);
 }
 
 function drawSub(t) {
@@ -353,8 +369,8 @@ function drawSub(t) {
     ctx.translate(0, (1 - easeOutBack(p, 1.2)) * 40);
     ctx.font = SUB_FONT;
     ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(255,20,20,0.9)'; ctx.shadowBlur = 24;
-    ctx.fillStyle = RED;
+    ctx.shadowColor = C.glowSub; ctx.shadowBlur = 24;
+    ctx.fillStyle = C.sub;
     ctx.fillText(s.ch, s.x, base);
     ctx.restore();
   });
