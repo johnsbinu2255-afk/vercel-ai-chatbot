@@ -6,7 +6,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,900;1,900&display=swap" rel="stylesheet">
 <style>
   html, body { margin: 0; background: #070405; }
-  canvas { display: block; width: 100vw; height: auto; max-width: 1920px; margin: 0 auto; }
+  canvas { display: block; max-width: 100vw; max-height: 100vh; margin: 0 auto; }
 </style>
 </head>
 <body>
@@ -18,7 +18,10 @@
    → D pops in → a second tyre rolls in to become the last O
    → TYRES appears underneath → shine.
    ========================================================= */
-const W = 1920, H = 1080;
+const PARAMS = new URLSearchParams(location.search);
+/* ?format=vertical → 1080×1920 for Reels / Stories / WhatsApp status (default: 1920×1080) */
+const VERTICAL = PARAMS.get('format') === 'vertical';
+const W = VERTICAL ? 1080 : 1920, H = VERTICAL ? 1920 : 1080;
 const DURATION = 5.0;
 const RED = '#ff1a1a', RED_DEEP = '#c00000', WHITE = '#f6f6f6', YELLOW = '#ffc400';
 /* Colour themes: open with ?theme=yellow for the black / red / yellow version */
@@ -36,17 +39,19 @@ const THEMES = {
     tireGlow: '255,150,0', bg1: '120,12,6', bg2: '45,8,4', roadEdge: '255,190,0', speed: '255,196,0',
   },
 };
-const C = THEMES[new URLSearchParams(location.search).get('theme')] || THEMES.red;
+const C = THEMES[PARAMS.get('theme')] || THEMES.red;
 const FONT_FAMILY = 'Montserrat, "DejaVu Sans", sans-serif';
-const FONT_PX = 330;
-const LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
-const SUB_PX = 112;
+let FONT_PX = 330;                  // shrunk in layout() when R-O-D-O is wider than the frame
+let LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
+const SUB_PX = VERTICAL ? 100 : 112;
 const SUB_FONT = `900 ${SUB_PX}px ${FONT_FAMILY}`;
-const SUB_SPACING = 34;
-const ROAD_Y = 650;                 // road surface: letters + tyres stand on it
+const SUB_SPACING = VERTICAL ? 30 : 34;
+const SIDE_MARGIN = 80;
+const ROAD_Y = VERTICAL ? 930 : 650; // road surface: letters + tyres stand on it
 const TIRE_TEXT = 'RODO TYRES';
 
 const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
 const ctx = cv.getContext('2d');
 
 const clamp = (v, a=0, b=1) => Math.max(a, Math.min(b, v));
@@ -58,13 +63,23 @@ function rng(seed) { return () => { seed = (seed * 16807) % 2147483647; return (
 /* ---------- layout ---------- */
 let TIRE_R = 115, slots = [], sub = [];
 function layout() {
-  ctx.font = LETTER_FONT;
-  const capH = ctx.measureText('R').actualBoundingBoxAscent;
-  TIRE_R = capH / 2 * 1.04;                    // tyre is the same height as the letters
   const word = ['R', 'O', 'D', 'O'];
   const gap = 16;
-  const widths = word.map(ch => ch === 'O' ? TIRE_R * 2 : ctx.measureText(ch).width);
-  const total = widths.reduce((a, b) => a + b, 0) + gap * 3;
+  let widths, total;
+  const measure = () => {
+    ctx.font = LETTER_FONT;
+    const capH = ctx.measureText('R').actualBoundingBoxAscent;
+    TIRE_R = capH / 2 * 1.04;                  // tyre is the same height as the letters
+    widths = word.map(ch => ch === 'O' ? TIRE_R * 2 : ctx.measureText(ch).width);
+    total = widths.reduce((a, b) => a + b, 0) + gap * 3;
+  };
+  measure();
+  const maxW = W - 2 * SIDE_MARGIN;
+  if (total > maxW) {                          // e.g. vertical format: scale lettering to fit
+    FONT_PX = Math.floor(FONT_PX * (maxW - gap * 3) / (total - gap * 3));
+    LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
+    measure();
+  }
   let x = (W - total) / 2;
   slots = word.map((ch, i) => { const s = { ch, x: x + widths[i] / 2 }; x += widths[i] + gap; return s; });
 
@@ -126,7 +141,7 @@ function drawBackground(t) {
 }
 
 function drawRoad(t) {
-  const g = ctx.createLinearGradient(0, ROAD_Y, 0, H);
+  const g = ctx.createLinearGradient(0, ROAD_Y, 0, ROAD_Y + 430);
   g.addColorStop(0, '#1d1a1c');
   g.addColorStop(1, '#0a0809');
   ctx.fillStyle = g;

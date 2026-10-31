@@ -1,5 +1,9 @@
 // Renders logo-animation.html frame-by-frame and encodes an MP4 with ffmpeg.
-// Usage: node render.js [fps] [theme: red | yellow]
+// Usage: node render.js [fps] [theme: red | yellow] [format: landscape | vertical]
+//   node render.js 30 red                 -> rodo-tyres-logo.mp4                 (1920x1080)
+//   node render.js 30 yellow              -> rodo-tyres-logo-yellow.mp4          (1920x1080)
+//   node render.js 30 red vertical        -> rodo-tyres-logo-vertical.mp4        (1080x1920)
+//   node render.js 30 yellow vertical     -> rodo-tyres-logo-yellow-vertical.mp4 (1080x1920)
 const { chromium } = require('playwright');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -9,22 +13,32 @@ const path = require('path');
 (async () => {
   const fps = Number(process.argv[2] || 30);
   const theme = process.argv[3] || 'red';
+  const format = process.argv[4] || 'landscape';
+  const vertical = format === 'vertical';
   const dir = __dirname;
   const frames = fs.mkdtempSync(path.join(os.tmpdir(), 'rodo-frames-'));
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
+  const page = await browser.newPage({
+    viewport: vertical ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 },
+  });
   await page.addInitScript(() => { window.__RECORDING__ = true; });
-  await page.goto('file://' + path.join(dir, 'logo-animation.html') + '?theme=' + theme);
+  await page.goto('file://' + path.join(dir, 'logo-animation.html') + `?theme=${theme}&format=${format}`);
   await page.evaluate(() => window.__ready);
   const duration = await page.evaluate(() => window.DURATION);
-  const canvas = await page.$('canvas');
   const n = Math.round(duration * fps);
   for (let i = 0; i < n; i++) {
-    await page.evaluate(t => window.render(t), i / fps);
-    await canvas.screenshot({ path: path.join(frames, `f${String(i).padStart(4, '0')}.png`) });
+    // grab the canvas pixels directly so the output is exactly the canvas size
+    const dataUrl = await page.evaluate(t => {
+      window.render(t);
+      return document.getElementById('c').toDataURL('image/png');
+    }, i / fps);
+    fs.writeFileSync(path.join(frames, `f${String(i).padStart(4, '0')}.png`),
+      Buffer.from(dataUrl.split(',')[1], 'base64'));
   }
   await browser.close();
-  const out = path.join(dir, theme === 'red' ? 'rodo-tyres-logo.mp4' : `rodo-tyres-logo-${theme}.mp4`);
+  const name = ['rodo-tyres-logo', theme !== 'red' && theme, vertical && 'vertical']
+    .filter(Boolean).join('-') + '.mp4';
+  const out = path.join(dir, name);
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps),
     '-i', path.join(frames, 'f%04d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
     '-crf', '18', '-movflags', '+faststart', out]);
