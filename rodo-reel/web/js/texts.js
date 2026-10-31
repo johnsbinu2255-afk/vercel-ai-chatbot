@@ -110,7 +110,8 @@ export class Texts {
     this.brandRule = mk(root, 'rule', '', { left: `${CX - 60}px`, top: '1222px', width: '120px', transformOrigin: 'center center' });
     add({ text: 'DRIVE SAFE. DRIVE CONFIDENT.', mode: 'words', cls: 'hero', in: 55.0, out: 99, stagger: 0.13, css: center(1262, 46, { fontWeight: 800, letterSpacing: '0.06em' }) });
     add({ html: '<span class="pill">VISIT RODO TYRES</span>', text: 'VISIT', mode: 'pop', cls: '', in: 56.3, out: 99, fit: false, css: center(1352, 38) });
-    add({ text: 'APOLLO · JK · YOKOHAMA · BRIDGESTONE · MRF · CEAT · CONTINENTAL · MICHELIN', mode: 'fade', cls: 'mono', in: 56.9, out: 99, css: center(1490, 22, { color: '#c3c8cf', letterSpacing: '0.1em' }) });
+    add({ text: 'AUTHORISED DEALER', mode: 'fade', cls: 'mono', in: 56.9, out: 99, css: center(1456, 22, { color: '#e3202a', letterSpacing: '0.3em' }) });
+    add({ text: 'APOLLO · JK TYRE · YOKOHAMA · BRIDGESTONE · CONTINENTAL', mode: 'words', cls: 'hero', in: 57.1, out: 99, stagger: 0.1, css: center(1490, 30, { fontWeight: 700, letterSpacing: '0.06em' }) });
   }
 
   update(t) {
