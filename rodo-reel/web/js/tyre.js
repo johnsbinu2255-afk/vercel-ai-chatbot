@@ -63,6 +63,59 @@ function tyreProfile() {
 // Canvas textures: height (tread + sidewall lettering), normal, roughness, crack mask.
 const TW = 4096, TH = 1024;
 
+// Sidewall logo positions (lathe u). Kept clear of the scene-3 damage at u = 0.875-0.92.
+export const BRAND_U = [0.0, 0.25, 0.5, 0.75];
+
+// Draws one RODO TYRES sidewall logo centred at canvas (x, y).
+// The sidewall is mapped upside-down and mirrored, so letters are flipped to read correctly with tops facing outward.
+function drawBrand(g, x, y, mode) {
+  g.save();
+  g.translate(x, y);
+  g.scale(-1, -1);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const font = (w, px) => `${w} ${px}px "Inter Display", Inter, sans-serif`;
+  if (mode === 'paint') {
+    // red swoosh panels framing the logo
+    const red = '#d0141c';
+    for (const side of [-1, 1]) {
+      g.fillStyle = red;
+      g.beginPath();
+      g.moveTo(side * 250, -92); g.quadraticCurveTo(side * 330, 0, side * 250, 92);
+      g.lineTo(side * 222, 92); g.quadraticCurveTo(side * 290, 0, side * 222, -92);
+      g.closePath(); g.fill();
+    }
+    const band = (y0) => {
+      const gr = g.createLinearGradient(-300, 0, 300, 0);
+      gr.addColorStop(0, 'rgba(208,20,28,0)'); gr.addColorStop(0.2, red); gr.addColorStop(0.8, red); gr.addColorStop(1, 'rgba(208,20,28,0)');
+      g.fillStyle = gr; g.fillRect(-300, y0, 600, 7);
+    };
+    band(-104); band(97);
+  }
+  g.fillStyle = mode === 'paint' ? '#ececec' : '#000';
+  g.font = font(900, 118);
+  if ('letterSpacing' in g) g.letterSpacing = '-2px';
+  g.fillText('RODO', 0, -18);
+  g.font = font(800, 38);
+  if ('letterSpacing' in g) g.letterSpacing = '14px';
+  g.fillText('TYRES', 7, 54);
+  g.restore();
+}
+
+function brandCanvas(prof) {
+  const c = document.createElement('canvas');
+  c.width = TW; c.height = TH;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  const c1 = prof.crown[1];
+  const vy = (v) => (1 - v) * TH;
+  const sv = (f) => c1 + (1 - c1) * f;
+  for (const u of BRAND_U) for (const dx of [-TW, 0, TW]) drawBrand(g, u * TW + dx, vy(sv(0.46)), 'paint');
+  // thin red rings at the tread edge and next to the rim
+  g.fillStyle = '#c4121a';
+  g.fillRect(0, vy(sv(0.05)), TW, 4);
+  g.fillRect(0, vy(sv(0.93)), TW, 6);
+  return c;
+}
+
 function heightCanvas(prof) {
   const c = document.createElement('canvas');
   c.width = TW; c.height = TH;
@@ -110,25 +163,9 @@ function heightCanvas(prof) {
   const tg = tmp.getContext('2d', { willReadFrequently: true });
   tg.filter = 'blur(1.2px)'; tg.drawImage(c, 0, 0);
   g.clearRect(0, 0, TW, TH); g.drawImage(tmp, 0, 0);
-  // Sidewall lettering on the visible face (v in [c1, 1]); radial "up" = canvas down.
-  const drawSidewallText = (txt, u, v, size, weight = 800, spacing = 0.12) => {
-    g.save();
-    g.translate(u * TW, vy(v));
-    g.scale(-1, -1);
-    g.font = `${weight} ${size}px "Inter Display", Inter, sans-serif`;
-    g.textAlign = 'center'; g.textBaseline = 'middle';
-    if ('letterSpacing' in g) g.letterSpacing = `${size * spacing}px`;
-    g.fillStyle = '#000';
-    g.fillText(txt, 0, 0);
-    g.restore();
-  };
   const sv = (f) => c1 + (1 - c1) * f; // 0 = outer edge, 1 = bead
-  for (const base of [0.0, 0.5]) {
-    drawSidewallText('225/45 R18 95W', base + 0.13, sv(0.40), 66);
-    drawSidewallText('TUBELESS', base + 0.29, sv(0.36), 40, 700, 0.3);
-    drawSidewallText('RADIAL', base + 0.36, sv(0.36), 40, 700, 0.3);
-    drawSidewallText('MAX LOAD 690 KG  ·  MAX PRESS 350 KPA', base + 0.24, sv(0.66), 22, 600, 0.2);
-  }
+  // RODO TYRES sidewall branding, embossed (the paint lives in brandCanvas)
+  for (const u of BRAND_U) for (const dx of [-TW, 0, TW]) drawBrand(g, u * TW + dx, vy(sv(0.46)), 'height');
   // fine concentric ribs near the bead
   g.globalAlpha = 0.35;
   for (let i = 0; i < 6; i++) g.fillRect(0, vy(sv(0.80 + i * 0.03)), TW, 2);
@@ -180,7 +217,7 @@ function roughCanvas(height, prof) {
   return c;
 }
 
-function colorCanvas(height) {
+function colorCanvas(height, brand) {
   const c = document.createElement('canvas');
   c.width = 2048; c.height = 512;
   const g = c.getContext('2d', { willReadFrequently: true });
@@ -200,6 +237,7 @@ function colorCanvas(height) {
     g.globalAlpha = 1;
     g.fillRect(rnd() * 2048, rnd() * 512, 2 + rnd() * 6, 1 + rnd() * 3);
   }
+  if (brand) { g.globalAlpha = 1; g.drawImage(brand, 0, 0, 2048, 512); }
   return c;
 }
 
@@ -268,7 +306,7 @@ export function buildTyre() {
   const crackU = 0.875; // lathe angle of the damage (see main.js for orientation)
   const mat = new THREE.MeshPhysicalMaterial({
     color: 0xffffff,
-    map: tex(colorCanvas(hC), true),
+    map: tex(colorCanvas(hC, brandCanvas(prof)), true),
     roughness: 1.0,
     roughnessMap: tex(roughCanvas(hC, prof)),
     normalMap: tex(nC),
