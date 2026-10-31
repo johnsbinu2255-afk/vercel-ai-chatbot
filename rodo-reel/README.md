@@ -8,6 +8,7 @@ Every frame is drawn in code (`reel.html`), so the timing is exact and you can c
 | `RODO_Wheel_Alignment_Reel_Malayalam.mp4` | **Final video with the Malayalam voice-over** |
 | `RODO_Wheel_Alignment_Reel_NoVO.mp4` | Finished video with music and sound effects, **without the voice-over yet** |
 | `reel.html` | The animation. Open it in a browser to watch a live preview |
+| `brand/` | The official RODO logo and the transparent layers cut from it (made by `../rodo-four-tyres/brand/extract.py`) |
 | `render.js` | Renders `reel.html` frame by frame to MP4 (Playwright + ffmpeg) |
 | `sfx.py` | Builds the music bed and all sound effects, timed to the scenes |
 | `add_vo.py` | Mixes in a voice-over recording, line by line, with the music ducked under it |
@@ -21,7 +22,7 @@ Every frame is drawn in code (`reel.html`), so the timing is exact and you can c
 | 0:08–0:13 | A steering wheel vibrates with shock waves and a live vibration graph | **02** FEELING STEERING VIBRATIONS? |
 | 0:13–0:18 | A rotating tyre zooms in to a side-by-side of normal and worn tread, with the worn edge outlined in glowing red | **03** TYRES WEARING UNEVENLY? |
 | 0:18–0:23 | Driver's view: the steering wheel is 17.8° off centre on a straight road, then turns back to centre (✓ CENTRED) | **04** STEERING WHEEL NOT STRAIGHT? |
-| 0:23–0:30 | 4-wheel laser alignment bay where each wheel's toe angle settles to 0.00°, then the RODO logo reveal | DON'T IGNORE THE SIGNS → GET YOUR WHEEL ALIGNMENT CHECKED! · VISIT RODO TYRES & ACCESSORIES · ERNAKULAM, KERALA |
+| 0:23–0:30 | 4-wheel laser alignment bay where each wheel's toe angle settles to 0.00°, then the official RODO logo builds: its two tyre O's roll in together like a car's wheels, the R and D rise and the emblem sweeps in | DON'T IGNORE THE SIGNS → GET YOUR WHEEL ALIGNMENT CHECKED! · VISIT RODO TYRES & ACCESSORIES · ERNAKULAM, KERALA |
 
 Transitions follow the script: fast zoom, whip-pan, spinning-tyre wipe, tyre-rotation spin, and a zoom-out to the alignment machine.
 

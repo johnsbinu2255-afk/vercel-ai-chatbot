@@ -76,7 +76,7 @@ tt = np.arange(N) / SR
 bassnotes = [36.71, 36.71, 43.65, 41.20]  # D, D, F, E (Hz, low)
 for b in range(int(DUR / beat)):
     at = b * beat
-    if at < 1.0 or 22.7 + 2.6 - .3 < at < 22.7 + 2.6 + .4: continue
+    if at < 1.0 or 22.7 + 2.6 + .6 < at < 22.7 + 2.6 + 1.3: continue
     i = int(at * SR); k = kick(); j = min(N, i + len(k)); music[i:j] += k[:j - i] * .55
     hi = int((at + beat / 2) * SR); h = hat(); j = min(N, hi + len(h)); music[hi:j] += h[:j - hi]
 bar = (tt // (beat * 4)).astype(int) % 4
@@ -119,10 +119,16 @@ add(whoosh(.6, False), S[5] - .35, 1.0)  # zoom out
 for at in [.3, 1.1]: add(laser(.8, 2600, 700), S[5] + at, .45, -.3 if at < 1 else .3)
 for i in range(4): add(click(), S[5] + .9 + i * .15, .6)
 add(chime(), S[5] + 1.9, .5)
-add(riser(.75), BR - .55, .8)
-add(impact(2.4, 55), BR + .2, 1.2)       # logo reveal
-add(sub_hit(), BR + .2, .6)
-add(laser(1.2, 4000, 2000), BR + .65, .2)
+def roll(d):          # logo tyres rolling in fast, then slowing to a stop
+    t = t_(d); k = t / d; speed = (1 - k) ** 2
+    rumble = lp(rng.standard_normal(len(t)), .04 + .1 * speed) * (0.6 + .4 * np.sin(2 * np.pi * np.cumsum(4 + 14 * speed) / SR))
+    return rumble * (0.3 + speed) * np.minimum(1, t / .08) * 1.6
+add(riser(.75), BR + .15, .7)
+add(whoosh(.5), BR, .8, -.6)
+add(roll(.85), BR + .1, .8)              # tyre O's roll in
+add(impact(2.4, 55), BR + .9, 1.2)       # tyres lock into the wordmark
+add(sub_hit(), BR + .9, .6)
+add(laser(1.2, 4000, 2000), BR + 1.5, .2)   # light sweep across the logo
 
 mix = np.stack([L, R], 1)
 mix = np.tanh(mix * 1.1)

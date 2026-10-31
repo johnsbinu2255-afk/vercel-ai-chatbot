@@ -22,6 +22,18 @@ const W = 1080, H = 1920, CX = W / 2, CY = H / 2;
 const RED = '#ff1f2d', RED_D = '#8a0010', YEL = '#ffc81e', WHITE = '#ffffff';
 const FONT = '"Inter Display", "Inter", Arial, sans-serif';
 
+// Official RODO logo, cut into layers (see ../rodo-four-tyres/brand/extract.py)
+const IMG = {};
+window.assetsReady = Promise.all(['tyre_O1', 'tyre_O2', 'word_R', 'word_D', 'emblem_reverse'].map(n => new Promise(res => {
+  const im = new Image(); im.onload = () => { IMG[n] = im; res(); }; im.onerror = () => res(); im.src = 'brand/' + n + '.png';
+})));
+const LOGO_POS = { emblem_reverse: [515, 85], word_R: [95, 535], word_D: [755, 535] };
+const TYRE_C = { tyre_O1: [569.5, 703, 177.5], tyre_O2: [1255, 703, 177.5] };
+const LOGO_S = 0.64, LOGO_ANCHOR = [766.5, 85], LOGO_AT = [540, 495];      // logo point -> frame point
+const lgx = x => LOGO_AT[0] + (x - LOGO_ANCHOR[0]) * LOGO_S;
+const lgy = y => LOGO_AT[1] + (y - LOGO_ANCHOR[1]) * LOGO_S;
+const logoBuf = document.createElement('canvas'); logoBuf.width = 1080; logoBuf.height = 1920;
+
 const out = document.getElementById('out');
 const octx = out.getContext('2d');
 const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
@@ -782,48 +794,74 @@ function scene6(c, t) {      // 25–30 alignment machine + brand reveal
     const bl = l - BRAND;
     c.save(); c.globalAlpha = brand;
     // light burst
-    const burst = c.createRadialGradient(CX, 900, 0, CX, 900, 700);
+    const burst = c.createRadialGradient(CX, 760, 0, CX, 760, 700);
     burst.addColorStop(0, `rgba(255,31,45,${.35 + .1 * Math.sin(bl * 4)})`); burst.addColorStop(1, 'rgba(255,31,45,0)');
     c.fillStyle = burst; c.fillRect(0, 0, W, H);
-    // rotating tyre emblem behind logo
-    c.save(); c.globalAlpha = brand * .35; tyreSide(c, CX, 900, 330, bl * .8); c.restore();
-    c.fillStyle = 'rgba(0,0,0,.45)'; c.beginPath(); c.arc(CX, 900, 340, 0, 7); c.fill();
+    // dark spotlight behind the logo so the dark-red wordmark reads against the red glow
+    c.save(); c.globalAlpha = brand;
+    const spot = c.createRadialGradient(CX, 760, 40, CX, 760, 560);
+    spot.addColorStop(0, 'rgba(0,0,0,.72)'); spot.addColorStop(.6, 'rgba(0,0,0,.45)'); spot.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = spot; c.fillRect(0, 0, W, H); c.restore();
     // headline above
-    const hk = eOut(prog(bl, .15, .5));
+    const hk = eOut(prog(bl, .55, .9));
     c.save(); c.globalAlpha = brand * hk; c.translate(0, (1 - hk) * 30);
     c.font = `900 64px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.letterSpacing = '-1px';
     c.fillStyle = YEL; c.fillText('GET YOUR WHEEL', CX, 330);
     c.fillText('ALIGNMENT CHECKED!', CX, 405);
     c.restore();
-    // logo
-    const lk = eBack(prog(bl, .2, .75));
-    const shine = prog(bl, .7, 1.5);
-    c.save(); c.translate(CX, 860); c.scale(lerp(.6, 1, lk), lerp(.6, 1, lk)); c.globalAlpha = brand * clamp(lk * 1.5);
-    text3D(c, 'RODO', 0, 0, 250, { depth: 24, dx: .7, dy: 1.1, tracking: 4, glow: 'rgba(255,31,45,.9)', glowBlur: 70,
-      face: ['#ffffff', '#ffffff', '#d4d7dd'] });
-    // shine sweep across logo
-    if (shine > 0 && shine < 1) {
-      c.save(); c.globalCompositeOperation = 'source-atop';
+    // official logo: the tyre O's roll in together like a car's wheels, R and D rise, the emblem sweeps in
+    if (IMG.tyre_O1) {
+      const lc = logoBuf.getContext('2d');
+      lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, W, H); lc.globalAlpha = 1; lc.globalCompositeOperation = 'source-over';
+      const r0 = .1, r1 = .9;
+      const D = 1350 * (1 - eOut(prog(bl, r0, r1)));
+      const speed = 1350 * 3 * Math.pow(1 - prog(bl, r0, r1), 2) / (r1 - r0);
+      const settle = Math.sin(prog(bl, r1, r1 + .35) * Math.PI) * 5 * (1 - prog(bl, r1, r1 + .35));
+      ['tyre_O1', 'tyre_O2'].forEach(n => {
+        const im = IMG[n], [cx, cy, r] = TYRE_C[n], w = im.width * LOGO_S, h = im.height * LOGO_S;
+        const x = lgx(cx) - D, y = lgy(cy) - settle, ang = -D / (r * LOGO_S), blur = Math.min(.6, speed / 3000);
+        const n5 = blur > .02 ? 5 : 1;
+        for (let i = 0; i < n5; i++) {
+          const k = n5 === 1 ? 0 : i / (n5 - 1) - .5;
+          lc.save(); lc.globalAlpha = n5 === 1 || i === 2 ? 1 : .35;
+          lc.translate(x, y); lc.rotate(ang + k * blur); lc.drawImage(im, -w / 2, -h / 2, w, h); lc.restore();
+        }
+      });
+      [['word_R', .8], ['word_D', .88]].forEach(([n, st]) => {
+        const im = IMG[n], k = eOut(prog(bl, st, st + .35)); if (!im || k <= 0) return;
+        const w = im.width * LOGO_S, h = im.height * LOGO_S, X = lgx(LOGO_POS[n][0]), Y = lgy(LOGO_POS[n][1]);
+        lc.save(); lc.beginPath(); lc.rect(X - 10, Y - 10, w + 20, h + 12); lc.clip(); lc.drawImage(im, X, Y + (1 - k) * h, w, h); lc.restore();
+      });
+      const ek = eOut(prog(bl, .95, 1.45));
+      if (ek > 0 && IMG.emblem_reverse) {
+        const im = IMG.emblem_reverse, w = im.width * LOGO_S, h = im.height * LOGO_S, X = lgx(515), Y = lgy(85), sc = lerp(.9, 1, ek);
+        lc.save(); lc.beginPath(); lc.rect(X - 20, Y - 20, (w + 40) * ek, h + 40); lc.clip();
+        lc.translate(X + w / 2, Y + h / 2); lc.scale(sc, sc); lc.drawImage(im, -w / 2, -h / 2, w, h); lc.restore();
+      }
+      const sp = prog(bl, 1.5, 2.3);                          // metallic light sweep, clipped to the logo
+      if (sp > 0 && sp < 1) {
+        lc.save(); lc.globalCompositeOperation = 'source-atop';
+        const sx = lerp(-300, W + 300, eIO(sp)), sg = lc.createLinearGradient(sx - 120, 0, sx + 120, 0);
+        sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.5)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+        lc.fillStyle = sg; lc.setTransform(1, 0, -.35, 1, 0, 0); lc.fillRect(-W, 0, W * 3, H); lc.restore();
+      }
+      c.save(); c.globalAlpha = brand;
+      c.shadowColor = 'rgba(255,255,255,.18)'; c.shadowBlur = 26; c.drawImage(logoBuf, 0, 0);
       c.restore();
-      const sx = lerp(-420, 420, shine);
-      const sg = c.createLinearGradient(sx - 60, 0, sx + 60, 0);
-      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-      c.save(); c.font = `900 250px ${FONT}`; c.letterSpacing = '4px'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillStyle = sg; c.globalCompositeOperation = 'lighter'; c.fillText('RODO', 0, 0); c.restore();
+      // red bar with a yellow tip under the wordmark
+      const bk = eOut(prog(bl, 1.1, 1.5));
+      c.save(); c.globalAlpha = brand;
+      c.fillStyle = RED; c.fillRect(CX - 300 * bk, 1040, 600 * bk, 10);
+      c.fillStyle = YEL; c.fillRect(CX + 300 * bk - 80 * bk, 1040, 80 * bk, 10);
+      c.restore();
     }
-    // red bar + subline
-    c.fillStyle = RED; c.fillRect(-300, 150, 600, 10);
-    c.fillStyle = YEL; c.fillRect(220, 150, 80, 10);
-    c.font = `800 46px ${FONT}`; c.letterSpacing = '10px'; c.fillStyle = WHITE; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText('TYRES & ACCESSORIES', 0, 220);
-    c.restore();
     // CTA + location
-    const ck = eOut(prog(bl, .6, 1.0));
+    const ck = eOut(prog(bl, 1.2, 1.6));
     c.save(); c.globalAlpha = brand * ck; c.translate(0, (1 - ck) * 30);
     c.font = `700 42px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(255,255,255,.85)';
-    c.fillText('VISIT RODO TYRES & ACCESSORIES', CX, 1250);
+    c.fillText('VISIT RODO TYRES & ACCESSORIES', CX, 1125);
     // location pill
-    const pw = 620, ph = 92, px = CX - pw / 2, py = 1310;
+    const pw = 620, ph = 92, px = CX - pw / 2, py = 1180;
     c.shadowColor = RED; c.shadowBlur = 30; c.fillStyle = RED; rrect(c, px, py, pw, ph, ph / 2); c.fill(); c.shadowBlur = 0;
     // pin icon
     c.fillStyle = WHITE; c.beginPath(); c.arc(px + 52, py + 38, 17, Math.PI, 0); c.lineTo(px + 52, py + 72); c.closePath(); c.fill();
@@ -831,7 +869,7 @@ function scene6(c, t) {      // 25–30 alignment machine + brand reveal
     c.fillStyle = RED; c.beginPath(); c.arc(px + 52, py + 38, 7, 0, 7); c.fill();
     c.fillStyle = WHITE; c.font = `900 44px ${FONT}`; c.letterSpacing = '1px'; c.fillText('ERNAKULAM, KERALA', CX + 34, py + ph / 2 + 2);
     c.font = `600 30px ${FONT}`; c.letterSpacing = '4px'; c.fillStyle = 'rgba(255,255,255,.6)';
-    c.fillText('PROFESSIONAL WHEEL ALIGNMENT', CX, 1470);
+    c.fillText('PROFESSIONAL WHEEL ALIGNMENT', CX, 1345);
     c.restore();
     c.restore();
   }
@@ -886,7 +924,7 @@ function finish(t) {
 }
 
 // impact camera shake times
-const IMPACTS = [1.0, B[1] + .4, B[2] + .4, B[3] + .4, B[4] + .3, B[5] + BRAND + .3];
+const IMPACTS = [1.0, B[1] + .4, B[2] + .4, B[3] + .4, B[4] + .3, B[5] + BRAND + .9];
 function shakeAt(t) {
   let a = 0;
   IMPACTS.forEach(it => { const k = t - it; if (k >= 0 && k < .45) a = Math.max(a, (1 - k / .45) * 22); });
