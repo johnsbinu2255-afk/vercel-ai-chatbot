@@ -1,0 +1,960 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RODO Wheel Alignment Reel</title>
+<style>
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; width: 360px; height: 640px; }
+  body.render canvas { width: 1080px; height: 1920px; }
+</style>
+</head>
+<body>
+<canvas id="out" width="1080" height="1920"></canvas>
+<script>
+/* =========================================================================
+   RODO TYRES & ACCESSORIES — "4 SIGNS YOU NEED A WHEEL ALIGNMENT"
+   30s · 1080x1920 · 30fps. Deterministic: renderFrame(t) draws time t.
+   ========================================================================= */
+const W = 1080, H = 1920, CX = W / 2, CY = H / 2;
+const RED = '#ff1f2d', RED_D = '#8a0010', YEL = '#ffc81e', WHITE = '#ffffff';
+const FONT = '"Inter Display", "Inter", Arial, sans-serif';
+
+const out = document.getElementById('out');
+const octx = out.getContext('2d');
+const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+const bufA = mk(), bufB = mk(), bufC = mk();
+
+// ---------- math helpers ----------
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eOut = k => 1 - Math.pow(1 - k, 3);
+const eIn = k => k * k * k;
+const eIO = k => k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+const eBack = k => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+const hash = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const noise = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return lerp(hash(i), hash(i + 1), u) * 2 - 1; };
+
+function rrect(c, x, y, w, h, r) {
+  c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+
+// ---------- background ----------
+function background(c, t, tint = 0) {
+  const g = c.createRadialGradient(CX, CY * .85, 50, CX, CY, H * .8);
+  g.addColorStop(0, '#1b1c20'); g.addColorStop(.55, '#0c0c0e'); g.addColorStop(1, '#000');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  if (tint > 0) {
+    const r = c.createRadialGradient(CX, CY, 0, CX, CY, H * .6);
+    r.addColorStop(0, `rgba(255,30,45,${.18 * tint})`); r.addColorStop(1, 'rgba(255,30,45,0)');
+    c.fillStyle = r; c.fillRect(0, 0, W, H);
+  }
+  // technical grid
+  c.save(); c.strokeStyle = 'rgba(255,255,255,0.035)'; c.lineWidth = 1;
+  for (let x = 0; x <= W; x += 60) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+  for (let y = 0; y <= H; y += 60) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+  c.restore();
+  // floating embers
+  c.save();
+  for (let i = 0; i < 40; i++) {
+    const sp = 20 + hash(i * 3.1) * 60;
+    const x = (hash(i) * W + Math.sin(t * .6 + i) * 30) % W;
+    const y = H - ((hash(i * 7.7) * H + t * sp) % H);
+    const a = .15 + .35 * hash(i * 1.9);
+    c.fillStyle = i % 5 === 0 ? `rgba(255,200,30,${a})` : `rgba(255,40,50,${a})`;
+    c.beginPath(); c.arc(x, y, 1.5 + hash(i * 2.3) * 2.5, 0, 7); c.fill();
+  }
+  c.restore();
+}
+
+// ---------- typography ----------
+function text3D(c, str, x, y, size, o = {}) {
+  const depth = o.depth ?? Math.round(size * .09), dx = o.dx ?? .55, dy = o.dy ?? .8;
+  c.save();
+  c.font = `${o.weight || 900} ${size}px ${FONT}`;
+  c.textAlign = o.align || 'center'; c.textBaseline = 'middle';
+  if (o.tracking) c.letterSpacing = o.tracking + 'px';
+  for (let i = depth; i > 0; i--) {
+    const k = i / depth;
+    c.fillStyle = o.sideColor ? o.sideColor(k) : `rgb(${Math.round(lerp(150, 40, k))},${Math.round(lerp(8, 0, k))},${Math.round(lerp(18, 6, k))})`;
+    c.fillText(str, x + i * dx, y + i * dy);
+  }
+  if (o.glow) { c.shadowColor = o.glow; c.shadowBlur = o.glowBlur || 40; }
+  const g = c.createLinearGradient(0, y - size / 2, 0, y + size / 2);
+  (o.face || ['#ffffff', '#ffffff', '#c9cdd4']).forEach((col, i, a) => g.addColorStop(i / (a.length - 1), col));
+  c.fillStyle = g; c.fillText(str, x, y);
+  c.shadowBlur = 0;
+  if (o.stroke) { c.lineWidth = o.strokeW || 3; c.strokeStyle = o.stroke; c.strokeText(str, x, y); }
+  c.restore();
+}
+
+// Big slam number (01..04). k: local time since impact start
+function slamNumber(c, str, x, y, k) {
+  if (k < 0) return;
+  const p = clamp(k / .35);
+  const s = lerp(3.2, 1, eOut(p)) * (1 + .04 * Math.sin(k * 3));
+  const a = clamp(k / .12);
+  c.save(); c.globalAlpha = a; c.translate(x, y); c.scale(s, s);
+  // ring burst behind
+  if (k < .8) {
+    const rk = clamp((k - .2) / .6);
+    c.strokeStyle = `rgba(255,31,45,${1 - rk})`; c.lineWidth = 10 * (1 - rk) + 1;
+    c.beginPath(); c.arc(0, 0, 150 + rk * 260, 0, 7); c.stroke();
+  }
+  text3D(c, str, 0, 0, 300, { depth: 26, dx: .9, dy: 1.1, glow: 'rgba(255,31,45,.55)', glowBlur: 60, tracking: -10,
+    face: ['#ffffff', '#f3f3f3', '#b8bcc4'] });
+  c.restore();
+}
+
+// Caption: words rise in from a mask, red accent bar
+function caption(c, lines, x, y, size, k, o = {}) {
+  if (k < 0) return;
+  c.save();
+  const lh = size * 1.08;
+  let wi = 0;
+  lines.forEach((line, li) => {
+    c.font = `900 ${size}px ${FONT}`; c.letterSpacing = '-1px';
+    const ly = y + li * lh;
+    const words = line.split(' ');
+    const total = c.measureText(line).width;
+    let cx = x - total / 2;
+    words.forEach(w => {
+      const ww = c.measureText(w + ' ').width;
+      const p = eOut(clamp((k - wi * .06) / .35));
+      c.save();
+      c.beginPath(); c.rect(cx - 10, ly - size * .75, ww + 20, size * 1.5); c.clip();
+      c.globalAlpha = p;
+      c.textBaseline = 'middle'; c.textAlign = 'left';
+      c.fillStyle = 'rgba(0,0,0,.6)'; c.fillText(w, cx + 4, ly + (1 - p) * size + 6);
+      c.fillStyle = (o.color && o.color(li, w)) || WHITE;
+      c.fillText(w, cx, ly + (1 - p) * size);
+      c.restore();
+      cx += ww; wi++;
+    });
+  });
+  // accent bar
+  const bp = eOut(clamp((k - .15) / .5));
+  if (!o.noBar) {
+    const bw = 220 * bp, by = y + lines.length * lh - size * .2;
+    c.fillStyle = RED; c.fillRect(x - bw / 2, by, bw, 8);
+    c.fillStyle = YEL; c.fillRect(x + bw / 2 - 30 * bp, by, 30 * bp, 8);
+  }
+  c.restore();
+}
+
+function laserLine(c, y, x0, x1, a = 1, thick = 3) {
+  c.save(); c.globalCompositeOperation = 'lighter';
+  const g = c.createLinearGradient(0, y - 40, 0, y + 40);
+  g.addColorStop(0, 'rgba(255,30,45,0)'); g.addColorStop(.5, `rgba(255,30,45,${.35 * a})`); g.addColorStop(1, 'rgba(255,30,45,0)');
+  c.fillStyle = g; c.fillRect(x0, y - 40, x1 - x0, 80);
+  c.fillStyle = `rgba(255,120,120,${a})`; c.fillRect(x0, y - thick / 2, x1 - x0, thick);
+  c.fillStyle = `rgba(255,255,255,${a})`; c.fillRect(x0, y - .75, x1 - x0, 1.5);
+  c.restore();
+}
+
+// ---------- vehicle parts ----------
+function tyreFront(c, x, y, w, h, glow) {   // tyre seen from front/rear: dark vertical capsule
+  c.save();
+  if (glow > 0) { c.shadowColor = `rgba(255,31,45,${glow})`; c.shadowBlur = 60; }
+  const g = c.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+  g.addColorStop(0, '#050505'); g.addColorStop(.35, '#2a2a2d'); g.addColorStop(.6, '#151517'); g.addColorStop(1, '#030303');
+  c.fillStyle = g; rrect(c, x - w / 2, y - h / 2, w, h, w * .35); c.fill();
+  c.shadowBlur = 0;
+  c.strokeStyle = 'rgba(255,255,255,.07)'; c.lineWidth = 2;
+  for (let i = 1; i < 4; i++) { const xx = x - w / 2 + w * i / 4; c.beginPath(); c.moveTo(xx, y - h / 2 + 10); c.lineTo(xx, y + h / 2 - 10); c.stroke(); }
+  if (glow > 0) { c.strokeStyle = `rgba(255,40,50,${glow})`; c.lineWidth = 4; rrect(c, x - w / 2 - 4, y - h / 2 - 4, w + 8, h + 8, w * .38); c.stroke(); }
+  c.restore();
+}
+
+function carFront(c, x, y, s, t, glow) {
+  c.save(); c.translate(x, y); c.scale(s, s);
+  // floor reflection / shadow
+  const sh = c.createRadialGradient(0, 230, 10, 0, 230, 520);
+  sh.addColorStop(0, 'rgba(0,0,0,.9)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.ellipse(0, 230, 520, 70, 0, 0, 7); c.fill();
+  // tyres
+  tyreFront(c, -330, 160, 120, 190, glow); tyreFront(c, 330, 160, 120, 190, glow);
+  // lower body
+  let g = c.createLinearGradient(0, -60, 0, 220);
+  g.addColorStop(0, '#3a3c42'); g.addColorStop(.45, '#1d1e22'); g.addColorStop(1, '#070708');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-420, 40); c.quadraticCurveTo(-430, -40, -360, -70); c.lineTo(360, -70); c.quadraticCurveTo(430, -40, 420, 40);
+  c.lineTo(400, 180); c.quadraticCurveTo(380, 210, 340, 210); c.lineTo(-340, 210); c.quadraticCurveTo(-380, 210, -400, 180); c.closePath(); c.fill();
+  // cabin / windshield
+  g = c.createLinearGradient(0, -260, 0, -70);
+  g.addColorStop(0, '#2b2d33'); g.addColorStop(1, '#111215');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-300, -70); c.lineTo(-210, -250); c.quadraticCurveTo(0, -275, 210, -250); c.lineTo(300, -70); c.closePath(); c.fill();
+  g = c.createLinearGradient(-200, -240, 200, -90);
+  g.addColorStop(0, '#0a0b0d'); g.addColorStop(.45, '#24272e'); g.addColorStop(.5, '#3b3f48'); g.addColorStop(.56, '#15171b'); g.addColorStop(1, '#060607');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-262, -85); c.lineTo(-195, -235); c.quadraticCurveTo(0, -256, 195, -235); c.lineTo(262, -85); c.closePath(); c.fill();
+  // hood highlight line
+  c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 3;
+  c.beginPath(); c.moveTo(-350, -60); c.quadraticCurveTo(0, -85, 350, -60); c.stroke();
+  // headlights (LED blades)
+  [-1, 1].forEach(sd => {
+    c.save(); c.scale(sd, 1);
+    c.shadowColor = 'rgba(255,255,255,.9)'; c.shadowBlur = 40;
+    c.fillStyle = '#eef6ff';
+    c.beginPath(); c.moveTo(170, -30); c.lineTo(385, -42); c.lineTo(375, -18); c.lineTo(185, -10); c.closePath(); c.fill();
+    c.shadowColor = RED; c.shadowBlur = 25; c.fillStyle = RED; c.fillRect(200, -4, 160, 5);
+    c.restore();
+  });
+  // grille
+  c.fillStyle = '#060607'; rrect(c, -150, 20, 300, 110, 30); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.08)'; c.lineWidth = 2;
+  for (let i = -130; i <= 130; i += 22) { c.beginPath(); c.moveTo(i, 28); c.lineTo(i + 10, 122); c.stroke(); }
+  c.strokeStyle = 'rgba(255,31,45,.8)'; c.lineWidth = 3; rrect(c, -150, 20, 300, 110, 30); c.stroke();
+  // emblem
+  c.fillStyle = '#d9dce2'; c.font = `900 26px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('R', 0, 75);
+  c.restore();
+}
+
+function carRear(c, x, y, s, rot, t) {
+  c.save(); c.translate(x, y); c.rotate(rot); c.scale(s, s);
+  const sh = c.createRadialGradient(0, 150, 10, 0, 150, 340);
+  sh.addColorStop(0, 'rgba(0,0,0,.95)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.ellipse(0, 150, 340, 55, 0, 0, 7); c.fill();
+  tyreFront(c, -215, 110, 78, 120, 0); tyreFront(c, 215, 110, 78, 120, 0);
+  let g = c.createLinearGradient(0, -40, 0, 150);
+  g.addColorStop(0, '#45474e'); g.addColorStop(.5, '#1f2024'); g.addColorStop(1, '#08080a');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-270, 20); c.quadraticCurveTo(-275, -40, -230, -50); c.lineTo(230, -50); c.quadraticCurveTo(275, -40, 270, 20);
+  c.lineTo(255, 130); c.lineTo(-255, 130); c.closePath(); c.fill();
+  g = c.createLinearGradient(0, -190, 0, -50); g.addColorStop(0, '#2c2e34'); g.addColorStop(1, '#121316');
+  c.fillStyle = g; c.beginPath(); c.moveTo(-205, -50); c.lineTo(-150, -180); c.quadraticCurveTo(0, -195, 150, -180); c.lineTo(205, -50); c.closePath(); c.fill();
+  g = c.createLinearGradient(-150, -170, 150, -60); g.addColorStop(0, '#08090b'); g.addColorStop(.5, '#2e323a'); g.addColorStop(1, '#060607');
+  c.fillStyle = g; c.beginPath(); c.moveTo(-180, -62); c.lineTo(-138, -168); c.quadraticCurveTo(0, -180, 138, -168); c.lineTo(180, -62); c.closePath(); c.fill();
+  // full-width tail light bar
+  c.save(); c.shadowColor = RED; c.shadowBlur = 45; c.fillStyle = RED;
+  c.beginPath(); c.moveTo(-262, -20); c.lineTo(262, -20); c.lineTo(255, -2); c.lineTo(-255, -2); c.closePath(); c.fill();
+  c.fillStyle = '#ffd0d4'; c.fillRect(-240, -14, 480, 3); c.restore();
+  c.fillStyle = '#0b0b0d'; rrect(c, -70, 40, 140, 40, 6); c.fill();
+  c.fillStyle = '#e6e7ea'; c.font = `900 24px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('RODO', 0, 61);
+  c.restore();
+}
+
+function steeringWheel(c, x, y, r, ang, o = {}) {
+  c.save(); c.translate(x, y); c.rotate(ang);
+  // ring
+  c.shadowColor = 'rgba(0,0,0,.8)'; c.shadowBlur = 40; c.shadowOffsetY = 20;
+  c.lineWidth = r * .2;
+  let g = c.createLinearGradient(-r, -r, r, r);
+  g.addColorStop(0, '#4a4c52'); g.addColorStop(.35, '#1c1d21'); g.addColorStop(.7, '#2b2c31'); g.addColorStop(1, '#0b0b0c');
+  c.strokeStyle = g; c.beginPath(); c.arc(0, 0, r, 0, 7); c.stroke();
+  c.shadowColor = 'transparent';
+  // stitching / highlight
+  c.lineWidth = 2; c.strokeStyle = 'rgba(255,255,255,.12)'; c.setLineDash([8, 10]);
+  c.beginPath(); c.arc(0, 0, r - r * .06, 0, 7); c.stroke(); c.setLineDash([]);
+  c.lineWidth = 3; c.strokeStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.arc(0, 0, r + r * .07, Math.PI * 1.1, Math.PI * 1.6); c.stroke();
+  // top centre marker
+  c.lineWidth = r * .2; c.strokeStyle = RED; c.beginPath(); c.arc(0, 0, r, -Math.PI / 2 - .07, -Math.PI / 2 + .07); c.stroke();
+  // spokes
+  g = c.createLinearGradient(0, -r * .3, 0, r);
+  g.addColorStop(0, '#3d3f45'); g.addColorStop(1, '#121214');
+  c.fillStyle = g;
+  c.beginPath(); c.moveTo(-r * .92, -r * .06); c.lineTo(-r * .3, -r * .16); c.lineTo(r * .3, -r * .16); c.lineTo(r * .92, -r * .06);
+  c.lineTo(r * .92, r * .12); c.lineTo(r * .25, r * .2); c.lineTo(r * .14, r * .9); c.lineTo(-r * .14, r * .9); c.lineTo(-r * .25, r * .2); c.lineTo(-r * .92, r * .12); c.closePath(); c.fill();
+  // hub
+  g = c.createRadialGradient(-r * .08, -r * .1, 5, 0, 0, r * .36);
+  g.addColorStop(0, '#5a5c63'); g.addColorStop(1, '#141417');
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, r * .34, 0, 7); c.fill();
+  c.strokeStyle = 'rgba(255,31,45,.8)'; c.lineWidth = 4; c.beginPath(); c.arc(0, 0, r * .34, 0, 7); c.stroke();
+  c.fillStyle = '#e8eaee'; c.font = `900 ${r * .2}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('R', 0, 2);
+  c.restore();
+}
+
+function tyreSide(c, x, y, r, ang, o = {}) {
+  c.save(); c.translate(x, y);
+  if (o.glow) { c.shadowColor = `rgba(255,31,45,${o.glow})`; c.shadowBlur = 80; }
+  c.fillStyle = '#0c0c0d'; c.beginPath(); c.arc(0, 0, r, 0, 7); c.fill(); c.shadowBlur = 0;
+  c.rotate(ang);
+  // tread blocks
+  const n = 48;
+  for (let i = 0; i < n; i++) {
+    c.save(); c.rotate(i / n * Math.PI * 2);
+    c.fillStyle = i % 2 ? '#1d1d20' : '#161618';
+    c.beginPath(); c.moveTo(-r * .05, -r); c.lineTo(r * .05, -r); c.lineTo(r * .035, -r * .9); c.lineTo(-r * .035, -r * .9); c.closePath(); c.fill();
+    c.restore();
+  }
+  // sidewall
+  let g = c.createRadialGradient(0, 0, r * .6, 0, 0, r * .9);
+  g.addColorStop(0, '#202024'); g.addColorStop(.7, '#151517'); g.addColorStop(1, '#0a0a0b');
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, r * .88, 0, 7); c.fill();
+  // sidewall lettering
+  c.fillStyle = 'rgba(255,255,255,.22)'; c.font = `800 ${r * .07}px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  ['RODO', 'ALIGN', 'RODO', 'ALIGN'].forEach((s, i) => { c.save(); c.rotate(i * Math.PI / 2); c.fillText(s, 0, -r * .76); c.restore(); });
+  // rim
+  g = c.createRadialGradient(-r * .15, -r * .2, r * .05, 0, 0, r * .66);
+  g.addColorStop(0, '#f2f4f7'); g.addColorStop(.5, '#8d929b'); g.addColorStop(1, '#3b3e44');
+  c.fillStyle = '#0a0a0c'; c.beginPath(); c.arc(0, 0, r * .66, 0, 7); c.fill();
+  // brake disc + caliper (does not rotate)
+  c.save(); c.rotate(-ang);
+  c.fillStyle = '#4a4c52'; c.beginPath(); c.arc(0, 0, r * .52, 0, 7); c.fill();
+  c.fillStyle = RED; rrect(c, r * .25, -r * .38, r * .2, r * .34, r * .06); c.fill();
+  c.restore();
+  // spokes
+  c.fillStyle = g;
+  for (let i = 0; i < 5; i++) {
+    c.save(); c.rotate(i / 5 * Math.PI * 2);
+    c.beginPath(); c.moveTo(-r * .07, -r * .14); c.lineTo(-r * .16, -r * .62); c.lineTo(r * .16, -r * .62); c.lineTo(r * .07, -r * .14); c.closePath(); c.fill();
+    c.restore();
+  }
+  c.strokeStyle = g; c.lineWidth = r * .05; c.beginPath(); c.arc(0, 0, r * .63, 0, 7); c.stroke();
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, r * .16, 0, 7); c.fill();
+  c.fillStyle = '#1a1b1f'; c.beginPath(); c.arc(0, 0, r * .08, 0, 7); c.fill();
+  c.fillStyle = RED; c.font = `900 ${r * .07}px ${FONT}`; c.fillText('R', 0, 1);
+  c.restore();
+}
+
+function warnTriangle(c, x, y, s, a) {
+  c.save(); c.translate(x, y); c.scale(s, s); c.globalAlpha = a;
+  c.shadowColor = YEL; c.shadowBlur = 40;
+  c.fillStyle = YEL; c.beginPath(); c.moveTo(0, -70); c.lineTo(78, 62); c.lineTo(-78, 62); c.closePath(); c.fill();
+  c.shadowBlur = 0; c.fillStyle = '#111';
+  c.beginPath(); c.moveTo(0, -48); c.lineTo(60, 50); c.lineTo(-60, 50); c.closePath(); c.fill();
+  c.fillStyle = YEL; c.fillRect(-7, -20, 14, 42); c.beginPath(); c.arc(0, 36, 8, 0, 7); c.fill();
+  c.restore();
+}
+
+function chevron(c, x, y, s, a, dir = 1) {
+  c.save(); c.translate(x, y); c.scale(s * dir, s); c.globalAlpha = a;
+  c.shadowColor = RED; c.shadowBlur = 30; c.fillStyle = RED;
+  c.beginPath(); c.moveTo(-30, -50); c.lineTo(10, -50); c.lineTo(50, 0); c.lineTo(10, 50); c.lineTo(-30, 50); c.lineTo(10, 0); c.closePath(); c.fill();
+  c.restore();
+}
+
+function hud(c, t, label) {   // corner brackets + label for "technical" feel
+  c.save(); c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 3;
+  const m = 60, L = 50;
+  [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(([x, y, sx, sy]) => {
+    c.beginPath(); c.moveTo(x, y + L * sy); c.lineTo(x, y); c.lineTo(x + L * sx, y); c.stroke();
+  });
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.font = `600 22px "JetBrains Mono", monospace`; c.textAlign = 'left';
+  if (label) c.fillText(label, 84, 100);
+  c.fillStyle = RED; c.beginPath(); c.arc(W - 96, 93, 7 + Math.sin(t * 8) * 1.5, 0, 7); c.fill();
+  c.fillStyle = 'rgba(255,255,255,.5)'; c.textAlign = 'right'; c.fillText('RODO', W - 112, 100);
+  c.restore();
+}
+
+// =========================================================================
+// SCENES (each receives absolute t and local time l)
+// =========================================================================
+function scene1(c, t) {      // 0–3 cinematic intro
+  const l = t;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  const scanY = lerp(-40, H + 40, eIO(prog(l, .1, 1.0)));
+  // revealed region (above scan line)
+  c.save();
+  c.beginPath(); c.rect(0, 0, W, Math.max(0, scanY)); c.clip();
+  background(c, t, prog(l, .8, 2));
+  // camera: rises out of darkness, then zoom into front wheels
+  const zoom = lerp(.95, 1.05, eOut(prog(l, 0, 1.6))) * lerp(1, 1.45, eIn(prog(l, 1.8, 3)));
+  const camY = lerp(0, -260, eIn(prog(l, 1.8, 3)));
+  const lightUp = eOut(prog(l, .3, 1.5));
+  c.save();
+  c.translate(CX, 1240 + camY * zoom); c.scale(zoom, zoom);
+  c.globalAlpha = lightUp;
+  // stage spotlight
+  const sp = c.createRadialGradient(0, 120, 20, 0, 120, 700);
+  sp.addColorStop(0, 'rgba(255,255,255,.07)'); sp.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = sp; c.fillRect(-W, -800, W * 2, 1600);
+  // floor line
+  c.strokeStyle = 'rgba(255,31,45,.35)'; c.lineWidth = 2; c.beginPath(); c.moveTo(-W, 240); c.lineTo(W, 240); c.stroke();
+  carFront(c, 0, 0, 1.08, t, .35 + .45 * prog(l, 1.2, 2.2) + .15 * Math.sin(t * 6));
+  c.restore();
+  c.globalAlpha = 1;
+  // darkness vignette that lifts
+  const v = c.createLinearGradient(0, 0, 0, H);
+  v.addColorStop(0, `rgba(0,0,0,${.9 - .5 * lightUp})`); v.addColorStop(.5, 'rgba(0,0,0,0)'); v.addColorStop(1, `rgba(0,0,0,${.85 - .3 * lightUp})`);
+  c.fillStyle = v; c.fillRect(0, 0, W, H);
+  c.restore();
+  // laser line
+  if (l < 1.15) laserLine(c, scanY, 0, W, 1 - prog(l, .95, 1.15), 4);
+  // headline
+  const k = l - .9;
+  if (k > 0) {
+    const p = eOut(clamp(k / .4));
+    c.save(); c.globalAlpha = p;
+    c.translate(0, (1 - p) * 40);
+    text3D(c, 'IS YOUR CAR', CX, 400, 96, { depth: 8, tracking: -2 });
+    text3D(c, 'LOSING ITS', CX, 510, 116, { depth: 10, tracking: -3 });
+    text3D(c, 'DIRECTION?', CX, 640, 138, { depth: 14, tracking: -4, face: ['#ff5a63', RED, '#c40014'],
+      sideColor: k2 => `rgb(${Math.round(lerp(110, 30, k2))},0,${Math.round(lerp(10, 4, k2))})`, glow: 'rgba(255,31,45,.6)', glowBlur: 50 });
+    c.restore();
+    // underline sweep
+    const u = eOut(prog(k, .25, .8));
+    c.fillStyle = RED; c.fillRect(CX - 300 * u, 730, 600 * u, 6);
+  }
+  hud(c, t, 'ALIGNMENT DIAGNOSTIC // 00');
+}
+
+// perspective road used by scenes 2 & 5
+function road(c, t, speed, horizonY, vpX, opts = {}) {
+  const roadW = opts.width || 1500;
+  c.save();
+  // sky glow
+  const sky = c.createLinearGradient(0, 0, 0, horizonY);
+  sky.addColorStop(0, '#050506'); sky.addColorStop(1, '#1d0a0d');
+  c.fillStyle = sky; c.fillRect(0, 0, W, horizonY);
+  // ground
+  const gr = c.createLinearGradient(0, horizonY, 0, H);
+  gr.addColorStop(0, '#0d0d0f'); gr.addColorStop(1, '#030303');
+  c.fillStyle = gr; c.fillRect(0, horizonY, W, H - horizonY);
+  // asphalt trapezoid
+  const bx0 = CX - roadW, bx1 = CX + roadW;
+  const ag = c.createLinearGradient(0, horizonY, 0, H);
+  ag.addColorStop(0, '#1a1b1e'); ag.addColorStop(1, '#2a2b2f');
+  c.fillStyle = ag; c.beginPath(); c.moveTo(vpX - 8, horizonY); c.lineTo(vpX + 8, horizonY); c.lineTo(bx1, H); c.lineTo(bx0, H); c.closePath(); c.fill();
+  // edge lines
+  c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 6;
+  [[bx0 + 120, -1], [bx1 - 120, 1]].forEach(([bx]) => { c.beginPath(); c.moveTo(vpX, horizonY); c.lineTo(bx, H); c.stroke(); });
+  // centre dashes moving toward camera
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    let z = ((i / n) + t * speed) % 1;           // 0 far → 1 near
+    const z0 = Math.pow(z, 2.2), z1 = Math.pow(Math.min(1, z + .035), 2.2);
+    const y0 = lerp(horizonY, H, z0), y1 = lerp(horizonY, H, z1);
+    const w0 = lerp(2, 26, z0), w1 = lerp(2, 26, z1);
+    const cx0 = lerp(vpX, CX, z0), cx1 = lerp(vpX, CX, z1);
+    c.fillStyle = opts.dashColor || YEL;
+    c.beginPath(); c.moveTo(cx0 - w0 / 2, y0); c.lineTo(cx0 + w0 / 2, y0); c.lineTo(cx1 + w1 / 2, y1); c.lineTo(cx1 - w1 / 2, y1); c.closePath(); c.fill();
+  }
+  // speed streaks
+  c.strokeStyle = 'rgba(255,255,255,.06)'; c.lineWidth = 2;
+  for (let i = 0; i < 18; i++) {
+    const z = ((hash(i) + t * speed * 1.6) % 1);
+    const side = i % 2 ? 1 : -1;
+    const x0 = vpX + side * lerp(60, 900, z * z), y0 = lerp(horizonY, H, z * z);
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(vpX + side * lerp(60, 900, Math.min(1, z * z * 1.25)), lerp(horizonY, H, Math.min(1, z * z * 1.25))); c.stroke();
+  }
+  c.restore();
+}
+
+function scene2(c, t) {      // 3–9 car pulling
+  const l = t - 3;
+  const frozen = l > 3.5 && l < 4.3;
+  const lt = frozen ? 3.5 : (l >= 4.3 ? l - .8 : l);     // time used for motion (freezes)
+  background(c, t);
+  const horizon = 860;
+  const drift = eIO(prog(lt, 1.0, 3.5));               // car drifts right
+  const vpX = CX - drift * 60;
+  road(c, lt, .55, horizon, vpX);
+  // ideal path (dashed white) vs actual (red curve)
+  c.save();
+  c.setLineDash([18, 16]); c.strokeStyle = 'rgba(255,255,255,.5)'; c.lineWidth = 4;
+  c.beginPath(); c.moveTo(CX, 1700); c.lineTo(vpX, horizon + 40); c.stroke(); c.setLineDash([]);
+  const pathP = prog(lt, .9, 3.3);
+  if (pathP > 0) {
+    c.strokeStyle = RED; c.lineWidth = 8; c.shadowColor = RED; c.shadowBlur = 20;
+    c.beginPath(); c.moveTo(CX, 1760);
+    for (let i = 0; i <= 30 * pathP; i++) { const k = i / 30; c.lineTo(CX + Math.pow(k, 2) * 240, 1760 - k * 640); }
+    c.stroke();
+  }
+  c.restore();
+  // car
+  const carX = CX + drift * 190, carRot = drift * .12 + Math.sin(lt * 9) * .004;
+  carRear(c, carX, 1360 - drift * 30, 1.12 - drift * .08, carRot, lt);
+  // arrows indicating pull direction
+  if (lt > 1.2) {
+    for (let i = 0; i < 3; i++) {
+      const a = .25 + .75 * Math.max(0, Math.sin(lt * 7 - i * .9));
+      chevron(c, carX - 110 + i * 90, 1640, .8, a * prog(lt, 1.2, 1.6));
+    }
+  }
+  // freeze: flash + desaturating red overlay + warning sign
+  if (l > 3.5) {
+    const f = prog(l, 3.5, 3.6) * (1 - prog(l, 3.6, 3.9));
+    c.fillStyle = `rgba(255,255,255,${f * .55})`; c.fillRect(0, 0, W, H);
+    const wa = prog(l, 3.5, 3.7);
+    // off-centre marker
+    c.save(); c.globalAlpha = wa;
+    c.strokeStyle = YEL; c.lineWidth = 4; c.setLineDash([10, 10]);
+    c.beginPath(); c.moveTo(CX, 1080); c.lineTo(CX, 1560); c.stroke(); c.setLineDash([]);
+    c.beginPath(); c.moveTo(CX, 1110); c.lineTo(carX, 1110); c.stroke();
+    c.fillStyle = YEL; c.font = `800 34px "JetBrains Mono", monospace`; c.textAlign = 'center';
+    c.fillText('OFF-CENTRE', (CX + carX) / 2, 1090);
+    c.restore();
+    warnTriangle(c, carX - 10, 1000, lerp(1.8, 1, eBack(prog(l, 3.5, 3.85))) * (1 + .05 * Math.sin(l * 12)), wa);
+    if (frozen) {
+      c.fillStyle = 'rgba(255,255,255,.65)'; c.font = `600 24px "JetBrains Mono", monospace`; c.textAlign = 'left';
+      c.fillText('▌▌ PAUSED', 84, 1780);
+    }
+  }
+  // number + caption
+  slamNumber(c, '01', CX, 330, l - .4);
+  caption(c, ['CAR PULLING', 'TO ONE SIDE?'], CX, 560, 92, l - .75, { color: (li, w) => w === 'PULLING' ? RED : null });
+  hud(c, t, 'SIGN 01 // TRACKING DRIFT');
+}
+
+function scene3(c, t) {      // 9–15 steering vibrations
+  const l = t - 9;
+  background(c, t, .6);
+  const zoom = lerp(1, 1.18, eIO(prog(l, 0, 6)));
+  const intensity = .4 + .6 * prog(l, .5, 2) ;
+  const vib = (Math.sin(l * 55) * .6 + Math.sin(l * 83) * .4) * .045 * intensity;
+  const sx = noise(l * 40) * 8 * intensity, sy = noise(l * 37 + 9) * 5 * intensity;
+  const wy = 1230;
+  // vibration waves
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) {
+    const k = ((l * 1.6 + i / 6) % 1);
+    [-1, 1].forEach(sd => {
+      c.strokeStyle = `rgba(255,31,45,${(1 - k) * .8 * intensity})`; c.lineWidth = 6 * (1 - k) + 1;
+      c.beginPath(); c.arc(CX, wy, 380 * zoom + k * 260, sd > 0 ? -.5 : Math.PI - .5, sd > 0 ? .5 : Math.PI + .5); c.stroke();
+    });
+  }
+  c.restore();
+  // motion-blurred wheel (ghosts)
+  for (let g = 3; g >= 0; g--) {
+    c.save(); c.globalAlpha = g === 0 ? 1 : .18;
+    const off = (g - 1.5) * .02 * intensity;
+    c.translate(CX + sx, wy + sy); c.scale(zoom, zoom); c.translate(-CX, -wy);
+    steeringWheel(c, CX, wy, 330, vib + off);
+    c.restore();
+  }
+  // oscilloscope readout
+  c.save();
+  const gy = 1700, gx0 = 140, gx1 = W - 140;
+  c.strokeStyle = 'rgba(255,255,255,.15)'; c.lineWidth = 2; c.strokeRect(gx0, gy - 70, gx1 - gx0, 140);
+  c.strokeStyle = YEL; c.lineWidth = 4; c.shadowColor = YEL; c.shadowBlur = 12; c.beginPath();
+  for (let x = gx0; x <= gx1; x += 4) {
+    const k = (x - gx0) / (gx1 - gx0);
+    const y = gy + Math.sin(k * 40 + l * 20) * 45 * intensity * (.6 + .4 * Math.sin(k * 7 + l * 3));
+    x === gx0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  }
+  c.stroke(); c.shadowBlur = 0;
+  c.fillStyle = 'rgba(255,255,255,.6)'; c.font = `600 22px "JetBrains Mono", monospace`; c.textAlign = 'left';
+  c.fillText('STEERING VIBRATION  ' + (12 + Math.abs(noise(l * 5)) * 30 * intensity).toFixed(1) + ' Hz', gx0, gy - 90);
+  c.restore();
+  slamNumber(c, '02', CX, 330, l - .4);
+  caption(c, ['FEELING STEERING', 'VIBRATIONS?'], CX, 560, 88, l - .75, { color: (li, w) => w === 'VIBRATIONS?' ? RED : null });
+  hud(c, t, 'SIGN 02 // VIBRATION SCAN');
+}
+
+function treadStrip(c, x, y, w, h, scroll, worn) {
+  c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+  const g = c.createLinearGradient(x, 0, x + w, 0);
+  g.addColorStop(0, '#0e0e10'); g.addColorStop(.5, '#232327'); g.addColorStop(1, '#0e0e10');
+  c.fillStyle = g; c.fillRect(x, y, w, h);
+  const ribs = 4, ribW = w / ribs, pitch = 90;
+  for (let r = 0; r < ribs; r++) {
+    const rx = x + r * ribW;
+    const wear = worn ? clamp(1 - r / 1.6) : 0;       // outer ribs worn on the left
+    for (let yy = y - pitch + (scroll % pitch); yy < y + h; yy += pitch) {
+      const blockCol = wear > .3 ? `rgb(${Math.round(lerp(44, 92, wear))},${Math.round(lerp(44, 88, wear))},${Math.round(lerp(48, 90, wear))})` : '#2d2d32';
+      c.fillStyle = blockCol;
+      c.beginPath();
+      const skew = 22 * (r % 2 ? 1 : -1);
+      c.moveTo(rx + 10, yy + 8); c.lineTo(rx + ribW - 10, yy + 8 + skew); c.lineTo(rx + ribW - 10, yy + pitch - 8 + skew); c.lineTo(rx + 10, yy + pitch - 8);
+      c.closePath(); c.fill();
+      if (wear < .5) {
+        c.strokeStyle = 'rgba(0,0,0,.7)'; c.lineWidth = 4;
+        c.beginPath(); c.moveTo(rx + 22, yy + 30); c.lineTo(rx + ribW - 22, yy + 30 + skew * .6); c.stroke();
+        c.beginPath(); c.moveTo(rx + 22, yy + 58); c.lineTo(rx + ribW - 22, yy + 58 + skew * .6); c.stroke();
+      }
+    }
+    // circumferential groove
+    if (r > 0) { c.fillStyle = worn && r === 1 ? '#3a3a40' : '#050506'; c.fillRect(rx - 6, y, 12, h); }
+  }
+  // shading
+  const sh = c.createLinearGradient(0, y, 0, y + h);
+  sh.addColorStop(0, 'rgba(0,0,0,.85)'); sh.addColorStop(.18, 'rgba(0,0,0,0)'); sh.addColorStop(.82, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.85)');
+  c.fillStyle = sh; c.fillRect(x, y, w, h);
+  c.restore();
+}
+
+function scene4(c, t) {      // 15–21 uneven tyre wear
+  const l = t - 15;
+  background(c, t, .4);
+  const split = eIO(prog(l, 1.5, 2.3));
+  // phase A: big rotating tyre zooming toward tread
+  if (split < 1) {
+    c.save(); c.globalAlpha = 1 - split;
+    const z = lerp(1, 1.9, eIn(prog(l, .3, 2.2)));
+    tyreSide(c, CX, 1200 + (z - 1) * 260, 420 * z, l * 1.4, { glow: .35 });
+    c.restore();
+  }
+  // phase B: split-screen tread comparison
+  if (split > 0) {
+    c.save(); c.globalAlpha = split;
+    const top = 860, h = 900, pw = 400, gap = 60;
+    const lx = CX - gap / 2 - pw, rx = CX + gap / 2;
+    const sc = l * 260;
+    c.save(); c.translate(0, (1 - split) * 200);
+    treadStrip(c, lx, top, pw, h, sc, false);
+    treadStrip(c, rx, top, pw, h, sc, true);
+    // divider
+    c.fillStyle = RED; c.fillRect(CX - 3, top - 40, 6, h + 80);
+    // labels
+    c.font = `900 40px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = WHITE; c.fillText('NORMAL', lx + pw / 2, top - 50);
+    c.fillStyle = RED; c.fillText('UNEVEN', rx + pw / 2, top - 50);
+    // check / cross badges
+    c.lineWidth = 8; c.lineCap = 'round';
+    c.strokeStyle = WHITE; c.beginPath(); c.moveTo(lx + pw / 2 - 26, top + h + 50); c.lineTo(lx + pw / 2 - 6, top + h + 70); c.lineTo(lx + pw / 2 + 30, top + h + 28); c.stroke();
+    c.strokeStyle = RED; c.beginPath(); c.moveTo(rx + pw / 2 - 24, top + h + 26); c.lineTo(rx + pw / 2 + 24, top + h + 74); c.moveTo(rx + pw / 2 + 24, top + h + 26); c.lineTo(rx + pw / 2 - 24, top + h + 74); c.stroke();
+    // glowing outline on worn section
+    const pulse = .6 + .4 * Math.sin(l * 6);
+    const hp = eOut(prog(l, 2.6, 3.2));
+    if (hp > 0) {
+      c.save(); c.globalAlpha = hp * split;
+      c.shadowColor = RED; c.shadowBlur = 40 * pulse; c.strokeStyle = RED; c.lineWidth = 7;
+      rrect(c, rx - 8, top + 40, pw * .45 + 16, h - 80, 18); c.stroke();
+      c.stroke();
+      c.shadowBlur = 0;
+      c.fillStyle = RED; rrect(c, rx + pw * .45 - 60, top + h / 2 - 28, 230, 56, 28); c.fill();
+      c.fillStyle = WHITE; c.font = `900 28px ${FONT}`; c.fillText('WORN EDGE', rx + pw * .45 + 55, top + h / 2 + 1);
+      c.restore();
+    }
+    c.restore();
+    c.restore();
+  }
+  slamNumber(c, '03', CX, 330, l - .4);
+  caption(c, ['TYRES WEARING', 'UNEVENLY?'], CX, 560, 92, l - .75, { color: (li, w) => w === 'UNEVENLY?' ? RED : null });
+  hud(c, t, 'SIGN 03 // TREAD ANALYSIS');
+}
+
+function scene5(c, t) {      // 21–25 crooked steering wheel (driver POV)
+  const l = t - 21;
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+  // road through windshield (straight)
+  road(c, l, .6, 760, CX, { width: 1300 });
+  // windshield frame / A-pillars
+  c.fillStyle = '#060607';
+  c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, 240); c.quadraticCurveTo(CX, 170, 0, 240); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(0, 240); c.lineTo(150, 240); c.lineTo(40, 1150); c.lineTo(0, 1150); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(W, 240); c.lineTo(W - 150, 240); c.lineTo(W - 40, 1150); c.lineTo(W, 1150); c.closePath(); c.fill();
+  // straight-ahead arrow
+  c.save(); c.globalAlpha = .9 * prog(l, .3, .7);
+  c.strokeStyle = WHITE; c.lineWidth = 6; c.setLineDash([16, 14]);
+  c.beginPath(); c.moveTo(CX, 1020); c.lineTo(CX, 830); c.stroke(); c.setLineDash([]);
+  c.fillStyle = WHITE; c.beginPath(); c.moveTo(CX, 790); c.lineTo(CX + 22, 830); c.lineTo(CX - 22, 830); c.closePath(); c.fill();
+  c.font = `700 24px "JetBrains Mono", monospace`; c.textAlign = 'center'; c.fillText('DRIVING STRAIGHT', CX, 770);
+  c.restore();
+  // dashboard
+  const dg = c.createLinearGradient(0, 1080, 0, H);
+  dg.addColorStop(0, '#1b1c20'); dg.addColorStop(.2, '#0b0b0d'); dg.addColorStop(1, '#030303');
+  c.fillStyle = dg; c.beginPath(); c.moveTo(0, 1150); c.quadraticCurveTo(CX, 1040, W, 1150); c.lineTo(W, H); c.lineTo(0, H); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(255,31,45,.6)'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 1152); c.quadraticCurveTo(CX, 1042, W, 1152); c.stroke();
+  // angle: off-centre then rotate back to centre
+  const fix = eIO(prog(l, 1.9, 2.7));
+  const off = -0.32;
+  const ang = off * (1 - fix) + (fix > 0 && fix < 1 ? 0 : 0) + Math.sin(l * 2) * .01 * (1 - fix);
+  const wx = CX, wy = 1580, wr = 330;
+  // alignment ring graphic
+  c.save(); c.translate(wx, wy);
+  c.strokeStyle = 'rgba(255,255,255,.18)'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, wr + 70, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+  for (let i = -12; i <= 12; i++) {
+    const a = -Math.PI / 2 + i * .07, len = i % 4 === 0 ? 30 : 15;
+    c.strokeStyle = i === 0 ? YEL : 'rgba(255,255,255,.45)'; c.lineWidth = i === 0 ? 6 : 3;
+    c.beginPath(); c.moveTo(Math.cos(a) * (wr + 70), Math.sin(a) * (wr + 70)); c.lineTo(Math.cos(a) * (wr + 70 + len), Math.sin(a) * (wr + 70 + len)); c.stroke();
+  }
+  // current angle indicator arc
+  const col = fix >= 1 ? YEL : RED;
+  c.strokeStyle = col; c.lineWidth = 10; c.shadowColor = col; c.shadowBlur = 20;
+  c.beginPath(); c.arc(0, 0, wr + 70, Math.min(-Math.PI / 2, -Math.PI / 2 + ang), Math.max(-Math.PI / 2, -Math.PI / 2 + ang) + .001); c.stroke();
+  c.beginPath(); const ia = -Math.PI / 2 + ang; c.arc(Math.cos(ia) * (wr + 70), Math.sin(ia) * (wr + 70), 12, 0, 7); c.fillStyle = col; c.fill();
+  c.shadowBlur = 0;
+  c.restore();
+  steeringWheel(c, wx, wy, wr, ang);
+  // readout
+  const deg = (ang * 180 / Math.PI);
+  c.save(); c.textAlign = 'center';
+  c.fillStyle = fix >= 1 ? YEL : RED; c.font = `800 44px "JetBrains Mono", monospace`;
+  c.fillText((deg >= 0 ? '+' : '') + deg.toFixed(1) + '°', wx, wy - wr - 100);
+  if (fix >= 1) {
+    const k = eBack(prog(l, 2.7, 3.0));
+    c.globalAlpha = clamp(k); c.font = `900 34px ${FONT}`; c.fillStyle = YEL;
+    c.fillText('✓ CENTRED', wx, wy - wr - 150);
+  }
+  c.restore();
+  // shade top for text legibility
+  const tg = c.createLinearGradient(0, 0, 0, 720);
+  tg.addColorStop(0, 'rgba(0,0,0,.85)'); tg.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = tg; c.fillRect(0, 0, W, 720);
+  slamNumber(c, '04', CX, 300, l - .3);
+  caption(c, ['STEERING WHEEL', 'NOT STRAIGHT?'], CX, 520, 88, l - .6, { color: (li, w) => w === 'STRAIGHT?' ? RED : null });
+  hud(c, t, 'SIGN 04 // CENTRE OFFSET');
+}
+
+function topCar(c, x, y, s, toe, laser, settled) {
+  c.save(); c.translate(x, y); c.scale(s, s);
+  // wheels with toe angles
+  const wp = [[-185, -300, toe[0]], [185, -300, toe[1]], [-185, 300, toe[2]], [185, 300, toe[3]]];
+  wp.forEach(([wx, wy, a], i) => {
+    c.save(); c.translate(wx, wy); c.rotate(a);
+    c.fillStyle = '#111'; rrect(c, -40, -85, 80, 170, 18); c.fill();
+    c.strokeStyle = settled[i] ? YEL : RED; c.lineWidth = 5; c.shadowColor = c.strokeStyle; c.shadowBlur = 25;
+    rrect(c, -46, -91, 92, 182, 22); c.stroke(); c.shadowBlur = 0;
+    // wheel direction line
+    c.strokeStyle = settled[i] ? YEL : 'rgba(255,31,45,.9)'; c.lineWidth = 3; c.setLineDash([10, 8]);
+    c.beginPath(); c.moveTo(0, -200); c.lineTo(0, 200); c.stroke(); c.setLineDash([]);
+    c.restore();
+  });
+  // body
+  let g = c.createLinearGradient(-170, 0, 170, 0);
+  g.addColorStop(0, '#16171a'); g.addColorStop(.5, '#3a3c42'); g.addColorStop(1, '#16171a');
+  c.fillStyle = g; rrect(c, -170, -440, 340, 880, 120); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 3; rrect(c, -170, -440, 340, 880, 120); c.stroke();
+  c.fillStyle = '#0a0b0d';
+  c.beginPath(); c.moveTo(-130, -150); c.quadraticCurveTo(0, -210, 130, -150); c.lineTo(115, -40); c.lineTo(-115, -40); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-115, 170); c.lineTo(115, 170); c.lineTo(125, 250); c.quadraticCurveTo(0, 280, -125, 250); c.closePath(); c.fill();
+  c.fillStyle = '#1e1f23'; rrect(c, -115, -40, 230, 210, 20); c.fill();
+  c.fillStyle = RED; c.fillRect(-150, 425, 300, 8);
+  c.fillStyle = '#eef6ff'; c.fillRect(-150, -438, 80, 6); c.fillRect(70, -438, 80, 6);
+  c.restore();
+}
+
+function scene6(c, t) {      // 25–30 alignment machine + brand reveal
+  const l = t - 25;
+  background(c, t, .5);
+  const brand = eIO(prog(l, 2.35, 2.95));
+  // ---- alignment bay ----
+  if (brand < 1) {
+    c.save(); c.globalAlpha = 1 - brand;
+    const bayS = lerp(1, .8, brand);
+    c.translate(CX, 1150); c.scale(bayS, bayS); c.translate(-CX, -1150);
+    // platform
+    c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 2;
+    for (let i = -6; i <= 6; i++) { c.beginPath(); c.moveTo(CX + i * 80, 600); c.lineTo(CX + i * 80, 1700); c.stroke(); }
+    c.fillStyle = 'rgba(255,200,30,.85)';
+    [[-185, -300], [185, -300], [-185, 300], [185, 300]].forEach(([dx, dy]) => {
+      c.save(); c.translate(CX + dx * 1.05, 1150 + dy * 1.05);
+      for (let k = 0; k < 6; k++) { c.fillRect(-90 + k * 32, 110, 18, 10); c.fillRect(-90 + k * 32, -120, 18, 10); }
+      c.restore();
+    });
+    const settleP = (i) => eIO(prog(l, .9 + i * .15, 1.6 + i * .15));
+    const toe0 = [-.14, .1, .08, -.11];
+    const toe = toe0.map((a, i) => a * (1 - settleP(i)));
+    const settled = toe0.map((_, i) => settleP(i) >= 1);
+    topCar(c, CX, 1150, 1.05, toe, 1, settled);
+    // laser beams between wheels + scanning sweep
+    const sweepY = lerp(600, 1700, (l * .9) % 1);
+    laserLine(c, sweepY, 160, W - 160, .9, 3);
+    c.save(); c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(255,40,50,.8)'; c.lineWidth = 3; c.shadowColor = RED; c.shadowBlur = 15;
+    [[-1], [1]].forEach(([sd]) => {
+      const x = CX + sd * 195 * 1.05;
+      c.beginPath(); c.moveTo(x, 1150 - 315 * 1.05); c.lineTo(x, 1150 + 315 * 1.05); c.stroke();
+    });
+    c.beginPath(); c.moveTo(CX - 195 * 1.05, 1150 - 315 * 1.05); c.lineTo(CX + 195 * 1.05, 1150 - 315 * 1.05); c.stroke();
+    c.beginPath(); c.moveTo(CX - 195 * 1.05, 1150 + 315 * 1.05); c.lineTo(CX + 195 * 1.05, 1150 + 315 * 1.05); c.stroke();
+    c.restore();
+    // readouts per wheel
+    const labels = ['FL', 'FR', 'RL', 'RR'];
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sy], i) => {
+      const x = CX + sx * 400, y = 1150 + sy * 315 * 1.05;
+      const deg = toe[i] * 180 / Math.PI;
+      const ok = settled[i];
+      c.save();
+      c.fillStyle = 'rgba(10,10,12,.85)'; rrect(c, x - 95, y - 60, 190, 120, 14); c.fill();
+      c.strokeStyle = ok ? YEL : RED; c.lineWidth = 3; rrect(c, x - 95, y - 60, 190, 120, 14); c.stroke();
+      c.textAlign = 'center'; c.fillStyle = 'rgba(255,255,255,.6)'; c.font = `700 20px "JetBrains Mono", monospace`;
+      c.fillText(labels[i] + ' TOE', x, y - 28);
+      c.fillStyle = ok ? YEL : RED; c.font = `800 36px "JetBrains Mono", monospace`;
+      c.fillText((deg >= 0 ? '+' : '') + deg.toFixed(2) + '°', x, y + 12);
+      // mini bar
+      c.fillStyle = 'rgba(255,255,255,.2)'; c.fillRect(x - 70, y + 34, 140, 6);
+      c.fillStyle = ok ? YEL : RED; c.fillRect(x - 4 + deg * 9, y + 28, 8, 18);
+      c.restore();
+    });
+    c.restore();
+    // headline
+    const k = l - .25;
+    if (k > 0) {
+      c.save(); c.globalAlpha = 1 - brand;
+      const p = eOut(clamp(k / .35));
+      c.translate(0, (1 - p) * 40); c.globalAlpha *= p;
+      text3D(c, "DON'T IGNORE", CX, 330, 118, { depth: 10, tracking: -3 });
+      text3D(c, 'THE SIGNS.', CX, 460, 130, { depth: 12, tracking: -3, face: ['#ff5a63', RED, '#c40014'],
+        sideColor: k2 => `rgb(${Math.round(lerp(110, 30, k2))},0,8)`, glow: 'rgba(255,31,45,.6)', glowBlur: 50 });
+      c.restore();
+    }
+  }
+  // ---- brand reveal ----
+  if (brand > 0) {
+    const bl = l - 2.35;
+    c.save(); c.globalAlpha = brand;
+    // light burst
+    const burst = c.createRadialGradient(CX, 900, 0, CX, 900, 700);
+    burst.addColorStop(0, `rgba(255,31,45,${.35 + .1 * Math.sin(bl * 4)})`); burst.addColorStop(1, 'rgba(255,31,45,0)');
+    c.fillStyle = burst; c.fillRect(0, 0, W, H);
+    // rotating tyre emblem behind logo
+    c.save(); c.globalAlpha = brand * .35; tyreSide(c, CX, 900, 330, bl * .8); c.restore();
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.beginPath(); c.arc(CX, 900, 340, 0, 7); c.fill();
+    // headline above
+    const hk = eOut(prog(bl, .15, .5));
+    c.save(); c.globalAlpha = brand * hk; c.translate(0, (1 - hk) * 30);
+    c.font = `900 64px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.letterSpacing = '-1px';
+    c.fillStyle = YEL; c.fillText('GET YOUR WHEEL', CX, 330);
+    c.fillText('ALIGNMENT CHECKED!', CX, 405);
+    c.restore();
+    // logo
+    const lk = eBack(prog(bl, .2, .75));
+    const shine = prog(bl, .7, 1.5);
+    c.save(); c.translate(CX, 860); c.scale(lerp(.6, 1, lk), lerp(.6, 1, lk)); c.globalAlpha = brand * clamp(lk * 1.5);
+    text3D(c, 'RODO', 0, 0, 250, { depth: 24, dx: .7, dy: 1.1, tracking: 4, glow: 'rgba(255,31,45,.9)', glowBlur: 70,
+      face: ['#ffffff', '#ffffff', '#d4d7dd'] });
+    // shine sweep across logo
+    if (shine > 0 && shine < 1) {
+      c.save(); c.globalCompositeOperation = 'source-atop';
+      c.restore();
+      const sx = lerp(-420, 420, shine);
+      const sg = c.createLinearGradient(sx - 60, 0, sx + 60, 0);
+      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(.5, 'rgba(255,255,255,.55)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.save(); c.font = `900 250px ${FONT}`; c.letterSpacing = '4px'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillStyle = sg; c.globalCompositeOperation = 'lighter'; c.fillText('RODO', 0, 0); c.restore();
+    }
+    // red bar + subline
+    c.fillStyle = RED; c.fillRect(-300, 150, 600, 10);
+    c.fillStyle = YEL; c.fillRect(220, 150, 80, 10);
+    c.font = `800 46px ${FONT}`; c.letterSpacing = '10px'; c.fillStyle = WHITE; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('TYRES & ACCESSORIES', 0, 220);
+    c.restore();
+    // CTA + location
+    const ck = eOut(prog(bl, .6, 1.0));
+    c.save(); c.globalAlpha = brand * ck; c.translate(0, (1 - ck) * 30);
+    c.font = `700 42px ${FONT}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = 'rgba(255,255,255,.85)';
+    c.fillText('VISIT RODO TYRES & ACCESSORIES', CX, 1250);
+    // location pill
+    const pw = 620, ph = 92, px = CX - pw / 2, py = 1310;
+    c.shadowColor = RED; c.shadowBlur = 30; c.fillStyle = RED; rrect(c, px, py, pw, ph, ph / 2); c.fill(); c.shadowBlur = 0;
+    // pin icon
+    c.fillStyle = WHITE; c.beginPath(); c.arc(px + 52, py + 38, 17, Math.PI, 0); c.lineTo(px + 52, py + 72); c.closePath(); c.fill();
+    c.beginPath(); c.arc(px + 52, py + 38, 17, 0, Math.PI); c.fill();
+    c.fillStyle = RED; c.beginPath(); c.arc(px + 52, py + 38, 7, 0, 7); c.fill();
+    c.fillStyle = WHITE; c.font = `900 44px ${FONT}`; c.letterSpacing = '1px'; c.fillText('ERNAKULAM, KERALA', CX + 34, py + ph / 2 + 2);
+    c.font = `600 30px ${FONT}`; c.letterSpacing = '4px'; c.fillStyle = 'rgba(255,255,255,.6)';
+    c.fillText('PROFESSIONAL WHEEL ALIGNMENT', CX, 1470);
+    c.restore();
+    c.restore();
+  }
+  hud(c, t, brand > .5 ? 'ALIGNMENT COMPLETE ✓' : 'LASER ALIGNMENT // 4-WHEEL');
+}
+
+const SCENES = [[0, 3, scene1], [3, 9, scene2], [9, 15, scene3], [15, 21, scene4], [21, 25, scene5], [25, 30.1, scene6]];
+function drawAt(c, t) {
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.shadowBlur = 0;
+  c.letterSpacing = '0px';
+  const s = SCENES.find(([a, b]) => t >= a && t < b) || SCENES[SCENES.length - 1];
+  s[2](c, t);
+  c.restore();
+}
+
+// ---------- compositing helpers ----------
+function blit(src, o = {}) {        // draws src to output with transform + optional directional blur
+  const n = o.samples || 1;
+  octx.save();
+  for (let i = 0; i < n; i++) {
+    const k = n === 1 ? 0 : (i / (n - 1) - .5);
+    octx.save();
+    octx.globalAlpha = (o.alpha ?? 1) * (n === 1 ? 1 : 1.6 / n);
+    if (i === 0) octx.globalAlpha = o.alpha ?? 1;
+    octx.translate(CX + (o.dx || 0) + k * (o.blurX || 0), CY + (o.dy || 0) + k * (o.blurY || 0));
+    octx.rotate((o.rot || 0) + k * (o.blurRot || 0));
+    const s = (o.scale || 1) * (1 + k * (o.blurScale || 0));
+    octx.scale(s, s);
+    octx.drawImage(src, -CX, -CY);
+    octx.restore();
+  }
+  octx.restore();
+}
+
+function flash(a, col = '255,255,255') { if (a > 0) { octx.fillStyle = `rgba(${col},${a})`; octx.fillRect(0, 0, W, H); } }
+
+function finish(t) {
+  // vignette
+  const v = octx.createRadialGradient(CX, CY, H * .3, CX, CY, H * .75);
+  v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.55)');
+  octx.fillStyle = v; octx.fillRect(0, 0, W, H);
+  // letterbox scanlines subtle
+  octx.fillStyle = 'rgba(255,255,255,0.012)';
+  for (let y = (Math.floor(t * 30) % 4); y < H; y += 4) octx.fillRect(0, y, W, 1);
+  // film grain
+  const f = Math.floor(t * 30);
+  octx.fillStyle = 'rgba(255,255,255,0.025)';
+  for (let i = 0; i < 400; i++) octx.fillRect(hash(i + f * 13.7) * W, hash(i * 3.3 + f) * H, 2, 2);
+  // fade in from / out to black
+  const fo = prog(t, 29.75, 30);
+  if (fo > 0) { octx.fillStyle = `rgba(0,0,0,${fo})`; octx.fillRect(0, 0, W, H); }
+}
+
+// impact camera shake times
+const IMPACTS = [1.0, 3.4, 9.4, 15.4, 21.3, 27.0];
+function shakeAt(t) {
+  let a = 0;
+  IMPACTS.forEach(it => { const k = t - it; if (k >= 0 && k < .45) a = Math.max(a, (1 - k / .45) * 22); });
+  return [noise(t * 50) * a, noise(t * 47 + 5) * a];
+}
+
+window.renderFrame = function (t) {
+  const ca = bufA.getContext('2d'), cb = bufB.getContext('2d');
+  octx.setTransform(1, 0, 0, 1, 0, 0); octx.globalAlpha = 1; octx.globalCompositeOperation = 'source-over';
+  octx.fillStyle = '#000'; octx.fillRect(0, 0, W, H);
+  const [shx, shy] = shakeAt(t);
+  const T = (a, b) => t >= a && t < b;
+
+  if (T(2.7, 3.0)) {                       // 1→2 fast zoom
+    const k = eIn(prog(t, 2.7, 3.0));
+    drawAt(ca, t); blit(bufA, { scale: 1 + k * 1.6, samples: 8, blurScale: .25 * k, dx: shx, dy: shy + k * 300 });
+    flash(k * .6);
+  } else if (T(3.0, 3.25)) {
+    const k = eOut(prog(t, 3.0, 3.25));
+    drawAt(ca, t); blit(bufA, { scale: lerp(1.5, 1, k), samples: 8, blurScale: .2 * (1 - k), dx: shx, dy: shy });
+    flash((1 - k) * .6);
+  } else if (T(8.75, 9.0)) {               // 2→3 whip-pan
+    const k = eIn(prog(t, 8.75, 9.0));
+    drawAt(ca, t); blit(bufA, { dx: -k * W, samples: 10, blurX: 260 * k });
+    drawAt(cb, 9.0); blit(bufB, { dx: W - k * W * .4, samples: 10, blurX: 260 * k });
+  } else if (T(9.0, 9.25)) {
+    const k = eOut(prog(t, 9.0, 9.25));
+    drawAt(ca, t); blit(bufA, { dx: (1 - k) * W * .6 + shx, dy: shy, samples: 10, blurX: 260 * (1 - k) });
+  } else if (T(14.65, 15.35)) {            // 3→4 spinning wheel wipe
+    const k = prog(t, 14.65, 15.35);
+    drawAt(ca, t < 15 ? t : t); blit(bufA, { dx: shx, dy: shy });
+    const grow = k < .5 ? eIn(k * 2) : 1 - eOut((k - .5) * 2);
+    const r = lerp(0, 1250, grow);
+    if (r > 1) {
+      octx.save();
+      tyreSide(octx, CX + lerp(-W * .7, 0, eOut(clamp(k * 2))), CY, r, t * 14, { glow: .5 });
+      octx.restore();
+    }
+  } else if (T(20.7, 21.3)) {              // 4→5 tyre-rotation transform
+    const k = prog(t, 20.7, 21.3);
+    drawAt(ca, t);
+    const rot = k < .5 ? eIn(k * 2) * Math.PI * .9 : -(1 - eOut((k - .5) * 2)) * Math.PI * .9;
+    const sc = 1 + Math.sin(k * Math.PI) * .5;
+    blit(bufA, { rot, scale: sc, samples: 10, blurRot: .35 * Math.sin(k * Math.PI) });
+    flash(Math.sin(k * Math.PI) * .25, '255,31,45');
+  } else if (T(24.7, 25.3)) {              // 5→6 fast zoom-out
+    const k = prog(t, 24.7, 25.3);
+    if (k < .5) {
+      const p = eIn(k * 2);
+      drawAt(cb, 25.0);
+      blit(bufB, { scale: lerp(2.2, 1.6, p), alpha: p });
+      drawAt(ca, t); blit(bufA, { scale: lerp(1, .25, p), samples: 8, blurScale: .4 * p, alpha: 1 - p * .6 });
+    } else {
+      const p = eOut((k - .5) * 2);
+      drawAt(ca, t); blit(bufA, { scale: lerp(1.6, 1, p), samples: 8, blurScale: .15 * (1 - p) });
+    }
+  } else {
+    drawAt(ca, t); blit(bufA, { dx: shx, dy: shy });
+  }
+  // impact flashes
+  IMPACTS.forEach(it => { const k = t - it; if (k >= 0 && k < .18) flash((1 - k / .18) * .35); });
+  // freeze flash in scene 2 handled in-scene; logo flash
+  finish(t);
+};
+
+// preview mode: play in real time when opened in a browser
+if (!location.search.includes('render')) {
+  const start = performance.now();
+  (function loop() { const t = ((performance.now() - start) / 1000) % 30; renderFrame(t); requestAnimationFrame(loop); })();
+} else { document.body.classList.add('render'); }
+</script>
+</body>
+</html>
