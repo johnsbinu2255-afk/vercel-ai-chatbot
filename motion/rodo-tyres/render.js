@@ -23,7 +23,7 @@ const path = require('path');
     await canvas.screenshot({ path: path.join(frames, `f${String(i).padStart(4, '0')}.png`) });
   }
   await browser.close();
-  const out = path.join(dir, 'rodo-dyres-logo.mp4');
+  const out = path.join(dir, 'rodo-tyres-logo.mp4');
   execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(fps),
     '-i', path.join(frames, 'f%04d.png'), '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
     '-crf', '18', '-movflags', '+faststart', out]);
