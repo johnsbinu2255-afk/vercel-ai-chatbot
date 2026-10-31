@@ -11,16 +11,17 @@
     "s5_solution": [36.0, 49.0],
     "s6_brand":    [49.0, 60.0]
   },
-  "vo_prefix": "vo_ml_",
-  "vo_pitch_semitones": -3.5,
-  "vo_bass_db": 7,
+  "vo_prefix": "vo_el_",
+  "vo_pitch_semitones": 0,
+  "vo_bass_db": 3,
+  "vo_gain_db": 5,
   "voiceover": {
-    "s1": 0.35,
-    "s2": 7.45,
-    "s3": 16.7,
-    "s4": 26.6,
-    "s5": 36.5,
-    "s6": 49.5
+    "s1": 0.4,
+    "s2": 7.3,
+    "s3": 17.0,
+    "s4": 27.0,
+    "s5": 37.0,
+    "s6": 50.0
   },
   "sfx": {
     "engine":   [[0.0, 7.0]],

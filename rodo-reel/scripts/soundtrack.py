@@ -346,7 +346,7 @@ with tempfile.TemporaryDirectory() as tmp:
               "acompressor=threshold=-22dB:ratio=3.5:attack=5:release=150:makeup=3")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", af, "-ac", "1", "-ar", str(SR), dst], check=True)
         x, _ = sf.read(dst)
-        x = x / (np.abs(x).max() + 1e-9) * 0.9
+        x = x / (np.abs(x).max() + 1e-9) * 0.9 * 10 ** (TL.get("vo_gain_db", 0) / 20)
         i = int(t0 * SR)
         x = x[: N - i]
         vo[i:i + len(x)] += np.stack([x, x], 1)
