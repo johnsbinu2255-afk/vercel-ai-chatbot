@@ -338,9 +338,12 @@ with tempfile.TemporaryDirectory() as tmp:
         dst = os.path.join(tmp, f"{key}.wav")
         # ~1 semitone lower with duration preserved, low-mid warmth, presence, gentle compression
         src_sr = sf.info(src).samplerate
-        af = (f"asetrate={src_sr}*0.94,aresample=48000,atempo=1/0.94,"
-              "highpass=f=70,equalizer=f=140:t=q:w=1:g=3,equalizer=f=3200:t=q:w=1.2:g=2.5,"
-              "acompressor=threshold=-20dB:ratio=3:attack=5:release=120:makeup=2")
+        # voice character from timeline.json: pitch shift (semitones) + low-shelf bass boost (dB)
+        r = 2 ** (TL.get("vo_pitch_semitones", -1.0) / 12)
+        bass = TL.get("vo_bass_db", 3)
+        af = (f"asetrate={src_sr}*{r:.5f},aresample=48000,atempo={1 / r:.5f},"
+              f"highpass=f=55,lowshelf=f=150:g={bass},equalizer=f=320:t=q:w=1:g=-2,equalizer=f=3000:t=q:w=1.2:g=2,"
+              "acompressor=threshold=-22dB:ratio=3.5:attack=5:release=150:makeup=3")
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-af", af, "-ac", "1", "-ar", str(SR), dst], check=True)
         x, _ = sf.read(dst)
         x = x / (np.abs(x).max() + 1e-9) * 0.9

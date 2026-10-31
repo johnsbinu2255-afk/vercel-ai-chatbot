@@ -12,6 +12,8 @@
     "s6_brand":    [49.0, 60.0]
   },
   "vo_prefix": "vo_ml_",
+  "vo_pitch_semitones": -3.5,
+  "vo_bass_db": 7,
   "voiceover": {
     "s1": 0.35,
     "s2": 7.45,
