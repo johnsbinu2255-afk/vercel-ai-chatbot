@@ -76,7 +76,7 @@ tt = np.arange(N) / SR
 bassnotes = [36.71, 36.71, 43.65, 41.20]  # D, D, F, E (Hz, low)
 for b in range(int(DUR / beat)):
     at = b * beat
-    if at < 1.0 or 26.9 < at < 27.6: continue
+    if at < 1.0 or 22.7 + 2.6 - .3 < at < 22.7 + 2.6 + .4: continue
     i = int(at * SR); k = kick(); j = min(N, i + len(k)); music[i:j] += k[:j - i] * .55
     hi = int((at + beat / 2) * SR); h = hat(); j = min(N, hi + len(h)); music[hi:j] += h[:j - hi]
 bar = (tt // (beat * 4)).astype(int) % 4
@@ -90,38 +90,39 @@ fade = np.clip((DUR - tt) / 1.2, 0, 1); music *= fade
 L += music * .5; R += music * .5
 
 # ---------- SFX timeline (matches reel.html) ----------
+S = [0, 3, 8.1, 13, 18.3, 22.7, 30]; BR = S[5] + 2.6   # scene starts + logo reveal (match reel.html)
 add(laser(1.0, 3000, 600), 0.05, .6)
 add(engine(2.7), 0.15, .9)
 add(impact(), 1.0, .9)
-add(whoosh(.45), 2.65, .9)
-add(impact(1.4, 60), 3.0, .5)
-add(impact(), 3.4, 1.0)               # 01 slam
-add(whoosh(.5), 3.75, .35, .3)
-add(tyre_roll(3.0), 4.0, .25, .4)
-for k, at in enumerate([5.3, 5.65, 6.0]): add(beep(), at, .35, .5)
-add(impact(1.0, 90), 6.5, .7)          # freeze
-add(beep(.35, 880), 6.5, .3)
-add(whoosh(.4), 8.6, 1.0, -.8)          # whip-pan
-add(impact(), 9.4, 1.0)                # 02 slam
-add(vibration(5.4), 9.4, .7)
-add(whoosh(.7), 14.6, 1.0)              # spinning wheel
-add(tyre_roll(1.0), 14.7, .6)
-add(impact(), 15.4, 1.0)               # 03 slam
-add(tyre_roll(2.0), 15.3, .5)
-add(whoosh(.5), 16.4, .5)
-add(laser(.6, 1200, 400), 17.6, .35)
-add(whoosh(.6), 20.65, 1.0)             # rotation transform
-add(impact(), 21.3, 1.0)               # 04 slam
-add(click(), 22.9, 1.0); add(click(), 23.15, .8)
-add(chime(), 23.7, .7)                 # centred
-add(whoosh(.6, False), 24.65, 1.0)      # zoom out
-for at in [25.3, 26.1]: add(laser(.8, 2600, 700), at, .45, -.3 if at < 26 else .3)
-for i in range(4): add(click(), 25.9 + i * .15, .6)
-add(chime(), 26.6, .5)
-add(riser(.75), 26.6, .8)
-add(impact(2.4, 55), 27.35, 1.2)        # logo reveal
-add(sub_hit(), 27.35, .6)
-add(laser(1.2, 4000, 2000), 27.8, .2)
+add(whoosh(.45), S[1] - .35, .9)
+add(impact(1.4, 60), S[1], .5)
+add(impact(), S[1] + .4, 1.0)            # 01 slam
+add(whoosh(.5), S[1] + .75, .35, .3)
+add(tyre_roll(3.0), S[1] + 1.0, .25, .4)
+for at in [2.3, 2.65, 3.0]: add(beep(), S[1] + at, .35, .5)
+add(impact(1.0, 90), S[1] + 3.5, .7)     # freeze
+add(beep(.35, 880), S[1] + 3.5, .3)
+add(whoosh(.4), S[2] - .4, 1.0, -.8)     # whip-pan
+add(impact(), S[2] + .4, 1.0)            # 02 slam
+add(vibration(S[3] - S[2] - .6), S[2] + .4, .7)
+add(whoosh(.7), S[3] - .4, 1.0)          # spinning wheel
+add(tyre_roll(1.0), S[3] - .3, .6)
+add(impact(), S[3] + .4, 1.0)            # 03 slam
+add(tyre_roll(2.0), S[3] + .3, .5)
+add(whoosh(.5), S[3] + 1.4, .5)
+add(laser(.6, 1200, 400), S[3] + 2.6, .35)
+add(whoosh(.6), S[4] - .35, 1.0)         # rotation transform
+add(impact(), S[4] + .3, 1.0)            # 04 slam
+add(click(), S[4] + 1.9, 1.0); add(click(), S[4] + 2.15, .8)
+add(chime(), S[4] + 2.7, .7)             # centred
+add(whoosh(.6, False), S[5] - .35, 1.0)  # zoom out
+for at in [.3, 1.1]: add(laser(.8, 2600, 700), S[5] + at, .45, -.3 if at < 1 else .3)
+for i in range(4): add(click(), S[5] + .9 + i * .15, .6)
+add(chime(), S[5] + 1.9, .5)
+add(riser(.75), BR - .55, .8)
+add(impact(2.4, 55), BR + .2, 1.2)       # logo reveal
+add(sub_hit(), BR + .2, .6)
+add(laser(1.2, 4000, 2000), BR + .65, .2)
 
 mix = np.stack([L, R], 1)
 mix = np.tanh(mix * 1.1)

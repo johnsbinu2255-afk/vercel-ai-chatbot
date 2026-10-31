@@ -16,6 +16,8 @@
    RODO TYRES & ACCESSORIES — "4 SIGNS YOU NEED A WHEEL ALIGNMENT"
    30s · 1080x1920 · 30fps. Deterministic: renderFrame(t) draws time t.
    ========================================================================= */
+// Scene boundaries, timed to the voice-over (seconds). BRAND = logo reveal, seconds into scene 6.
+const B = [0, 3, 8.1, 13, 18.3, 22.7, 30], BRAND = 2.6;
 const W = 1080, H = 1920, CX = W / 2, CY = H / 2;
 const RED = '#ff1f2d', RED_D = '#8a0010', YEL = '#ffc81e', WHITE = '#ffffff';
 const FONT = '"Inter Display", "Inter", Arial, sans-serif';
@@ -435,7 +437,7 @@ function road(c, t, speed, horizonY, vpX, opts = {}) {
 }
 
 function scene2(c, t) {      // 3–9 car pulling
-  const l = t - 3;
+  const l = t - B[1];
   const frozen = l > 3.5 && l < 4.3;
   const lt = frozen ? 3.5 : (l >= 4.3 ? l - .8 : l);     // time used for motion (freezes)
   background(c, t);
@@ -491,7 +493,7 @@ function scene2(c, t) {      // 3–9 car pulling
 }
 
 function scene3(c, t) {      // 9–15 steering vibrations
-  const l = t - 9;
+  const l = t - B[2];
   background(c, t, .6);
   const zoom = lerp(1, 1.18, eIO(prog(l, 0, 6)));
   const intensity = .4 + .6 * prog(l, .5, 2) ;
@@ -568,7 +570,7 @@ function treadStrip(c, x, y, w, h, scroll, worn) {
 }
 
 function scene4(c, t) {      // 15–21 uneven tyre wear
-  const l = t - 15;
+  const l = t - B[3];
   background(c, t, .4);
   const split = eIO(prog(l, 1.5, 2.3));
   // phase A: big rotating tyre zooming toward tread
@@ -619,7 +621,7 @@ function scene4(c, t) {      // 15–21 uneven tyre wear
 }
 
 function scene5(c, t) {      // 21–25 crooked steering wheel (driver POV)
-  const l = t - 21;
+  const l = t - B[4];
   c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
   // road through windshield (straight)
   road(c, l, .6, 760, CX, { width: 1300 });
@@ -710,9 +712,9 @@ function topCar(c, x, y, s, toe, laser, settled) {
 }
 
 function scene6(c, t) {      // 25–30 alignment machine + brand reveal
-  const l = t - 25;
+  const l = t - B[5];
   background(c, t, .5);
-  const brand = eIO(prog(l, 2.35, 2.95));
+  const brand = eIO(prog(l, BRAND, BRAND + .6));
   // ---- alignment bay ----
   if (brand < 1) {
     c.save(); c.globalAlpha = 1 - brand;
@@ -777,7 +779,7 @@ function scene6(c, t) {      // 25–30 alignment machine + brand reveal
   }
   // ---- brand reveal ----
   if (brand > 0) {
-    const bl = l - 2.35;
+    const bl = l - BRAND;
     c.save(); c.globalAlpha = brand;
     // light burst
     const burst = c.createRadialGradient(CX, 900, 0, CX, 900, 700);
@@ -836,7 +838,7 @@ function scene6(c, t) {      // 25–30 alignment machine + brand reveal
   hud(c, t, brand > .5 ? 'ALIGNMENT COMPLETE ✓' : 'LASER ALIGNMENT // 4-WHEEL');
 }
 
-const SCENES = [[0, 3, scene1], [3, 9, scene2], [9, 15, scene3], [15, 21, scene4], [21, 25, scene5], [25, 30.1, scene6]];
+const SCENES = [[B[0], B[1], scene1], [B[1], B[2], scene2], [B[2], B[3], scene3], [B[3], B[4], scene4], [B[4], B[5], scene5], [B[5], B[6] + .1, scene6]];
 function drawAt(c, t) {
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.shadowBlur = 0;
   c.letterSpacing = '0px';
@@ -884,7 +886,7 @@ function finish(t) {
 }
 
 // impact camera shake times
-const IMPACTS = [1.0, 3.4, 9.4, 15.4, 21.3, 27.0];
+const IMPACTS = [1.0, B[1] + .4, B[2] + .4, B[3] + .4, B[4] + .3, B[5] + BRAND + .3];
 function shakeAt(t) {
   let a = 0;
   IMPACTS.forEach(it => { const k = t - it; if (k >= 0 && k < .45) a = Math.max(a, (1 - k / .45) * 22); });
@@ -906,16 +908,16 @@ window.renderFrame = function (t) {
     const k = eOut(prog(t, 3.0, 3.25));
     drawAt(ca, t); blit(bufA, { scale: lerp(1.5, 1, k), samples: 8, blurScale: .2 * (1 - k), dx: shx, dy: shy });
     flash((1 - k) * .6);
-  } else if (T(8.75, 9.0)) {               // 2→3 whip-pan
-    const k = eIn(prog(t, 8.75, 9.0));
+  } else if (T(B[2] - .25, B[2])) {               // 2→3 whip-pan
+    const k = eIn(prog(t, B[2] - .25, B[2]));
     drawAt(ca, t); blit(bufA, { dx: -k * W, samples: 10, blurX: 260 * k });
-    drawAt(cb, 9.0); blit(bufB, { dx: W - k * W * .4, samples: 10, blurX: 260 * k });
-  } else if (T(9.0, 9.25)) {
-    const k = eOut(prog(t, 9.0, 9.25));
+    drawAt(cb, B[2]); blit(bufB, { dx: W - k * W * .4, samples: 10, blurX: 260 * k });
+  } else if (T(B[2], B[2] + .25)) {
+    const k = eOut(prog(t, B[2], B[2] + .25));
     drawAt(ca, t); blit(bufA, { dx: (1 - k) * W * .6 + shx, dy: shy, samples: 10, blurX: 260 * (1 - k) });
-  } else if (T(14.65, 15.35)) {            // 3→4 spinning wheel wipe
-    const k = prog(t, 14.65, 15.35);
-    drawAt(ca, t < 15 ? t : t); blit(bufA, { dx: shx, dy: shy });
+  } else if (T(B[3] - .35, B[3] + .35)) {            // 3→4 spinning wheel wipe
+    const k = prog(t, B[3] - .35, B[3] + .35);
+    drawAt(ca, t); blit(bufA, { dx: shx, dy: shy });
     const grow = k < .5 ? eIn(k * 2) : 1 - eOut((k - .5) * 2);
     const r = lerp(0, 1250, grow);
     if (r > 1) {
@@ -923,18 +925,18 @@ window.renderFrame = function (t) {
       tyreSide(octx, CX + lerp(-W * .7, 0, eOut(clamp(k * 2))), CY, r, t * 14, { glow: .5 });
       octx.restore();
     }
-  } else if (T(20.7, 21.3)) {              // 4→5 tyre-rotation transform
-    const k = prog(t, 20.7, 21.3);
+  } else if (T(B[4] - .3, B[4] + .3)) {              // 4→5 tyre-rotation transform
+    const k = prog(t, B[4] - .3, B[4] + .3);
     drawAt(ca, t);
     const rot = k < .5 ? eIn(k * 2) * Math.PI * .9 : -(1 - eOut((k - .5) * 2)) * Math.PI * .9;
     const sc = 1 + Math.sin(k * Math.PI) * .5;
     blit(bufA, { rot, scale: sc, samples: 10, blurRot: .35 * Math.sin(k * Math.PI) });
     flash(Math.sin(k * Math.PI) * .25, '255,31,45');
-  } else if (T(24.7, 25.3)) {              // 5→6 fast zoom-out
-    const k = prog(t, 24.7, 25.3);
+  } else if (T(B[5] - .3, B[5] + .3)) {              // 5→6 fast zoom-out
+    const k = prog(t, B[5] - .3, B[5] + .3);
     if (k < .5) {
       const p = eIn(k * 2);
-      drawAt(cb, 25.0);
+      drawAt(cb, B[5]);
       blit(bufB, { scale: lerp(2.2, 1.6, p), alpha: p });
       drawAt(ca, t); blit(bufA, { scale: lerp(1, .25, p), samples: 8, blurScale: .4 * p, alpha: 1 - p * .6 });
     } else {

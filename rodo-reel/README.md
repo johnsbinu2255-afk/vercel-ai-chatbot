@@ -5,6 +5,7 @@ Every frame is drawn in code (`reel.html`), so the timing is exact and you can c
 
 | File | What it is |
 |---|---|
+| `RODO_Wheel_Alignment_Reel_Malayalam.mp4` | **Final video with the Malayalam voice-over** |
 | `RODO_Wheel_Alignment_Reel_NoVO.mp4` | Finished video with music and sound effects, **without the voice-over yet** |
 | `reel.html` | The animation. Open it in a browser to watch a live preview |
 | `render.js` | Renders `reel.html` frame by frame to MP4 (Playwright + ffmpeg) |
@@ -16,11 +17,11 @@ Every frame is drawn in code (`reel.html`), so the timing is exact and you can c
 | Time | Scene | Number/text |
 |---|---|---|
 | 0:00–0:03 | Laser scan reveals the car; camera pushes in on the glowing front wheels | IS YOUR CAR LOSING ITS DIRECTION? |
-| 0:03–0:09 | Chase view: the car drifts off line, red arrows, a freeze-frame and a warning sign | **01** CAR PULLING TO ONE SIDE? |
-| 0:09–0:15 | A steering wheel vibrates with shock waves and a live vibration graph | **02** FEELING STEERING VIBRATIONS? |
-| 0:15–0:21 | A rotating tyre zooms in to a side-by-side of normal and worn tread, with the worn edge outlined in glowing red | **03** TYRES WEARING UNEVENLY? |
-| 0:21–0:25 | Driver's view: the steering wheel is 17.8° off centre on a straight road, then turns back to centre (✓ CENTRED) | **04** STEERING WHEEL NOT STRAIGHT? |
-| 0:25–0:30 | 4-wheel laser alignment bay where each wheel's toe angle settles to 0.00°, then the RODO logo reveal | DON'T IGNORE THE SIGNS → GET YOUR WHEEL ALIGNMENT CHECKED! · VISIT RODO TYRES & ACCESSORIES · ERNAKULAM, KERALA |
+| 0:03–0:08 | Chase view: the car drifts off line, red arrows, a freeze-frame and a warning sign | **01** CAR PULLING TO ONE SIDE? |
+| 0:08–0:13 | A steering wheel vibrates with shock waves and a live vibration graph | **02** FEELING STEERING VIBRATIONS? |
+| 0:13–0:18 | A rotating tyre zooms in to a side-by-side of normal and worn tread, with the worn edge outlined in glowing red | **03** TYRES WEARING UNEVENLY? |
+| 0:18–0:23 | Driver's view: the steering wheel is 17.8° off centre on a straight road, then turns back to centre (✓ CENTRED) | **04** STEERING WHEEL NOT STRAIGHT? |
+| 0:23–0:30 | 4-wheel laser alignment bay where each wheel's toe angle settles to 0.00°, then the RODO logo reveal | DON'T IGNORE THE SIGNS → GET YOUR WHEEL ALIGNMENT CHECKED! · VISIT RODO TYRES & ACCESSORIES · ERNAKULAM, KERALA |
 
 Transitions follow the script: fast zoom, whip-pan, spinning-tyre wipe, tyre-rotation spin, and a zoom-out to the alignment machine.
 
@@ -41,7 +42,7 @@ Record (or generate) the full script as **one take, with a clear pause between e
 python3 add_vo.py vo.mp3 video_silent.mp4 sfx_music.wav RODO_Wheel_Alignment_Reel.mp4
 ```
 
-The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.35s, 3.45s, 9.45s, 15.45s, 21.2s, 24.55s and 26.15s), speeding a line up slightly (at most 1.25×) only if it would run into the next one. It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
+The script splits the take at its pauses into the 7 lines and places each line at the start of its scene (0.25s, 3.25s, 8.4s, 13.3s, 18.55s, 23.0s and 25.15s) at natural speed. The scene boundaries in `reel.html` (`B`) and `sfx.py` (`S`) were timed to the Malayalam take, so each line plays over its own scene; a line is only sped up (at most 1.25×) if a new recording runs long. It turns the music down under the voice and sets the loudness to −14 LUFS for social media.
 
 ## Instagram caption
 
