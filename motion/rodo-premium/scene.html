@@ -1,0 +1,862 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>RODO Logo Sting</title>
+<style>
+  html, body { margin: 0; background: #000; }
+  #out { display: block; max-width: 100vw; max-height: 100vh; margin: 0 auto; }
+</style>
+</head>
+<body>
+<script type="importmap">
+{ "imports": { "three": "./node_modules/three/build/three.module.js",
+               "three/addons/": "./node_modules/three/examples/jsm/" } }
+</script>
+<script type="module">
+/* ==========================================================================
+   RODO — 8 s premium logo sting
+   0.0  dark, engine idle
+   0.5  red light streak whips in and draws the swoosh of the R emblem
+   1.4  black R emblem assembles from three machined parts around it
+   2.6  two tyres with silver alloys roll in from opposite sides, spinning
+   3.6  burnout spin in place, smoke, then they lock in as the two O's
+   4.1  red R and D slide into place with mechanical impacts
+   5.15 red light wipe reveals the yellow background + flat final logo
+   6.0  final logo holds, perfectly still, to 8.0
+   Everything is a pure function of time t, so any frame renders on its own.
+   ========================================================================== */
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const G = await (await fetch('logo-geometry.json')).json();
+const TL = await (await fetch('timeline.json')).json();
+const W = G.W, H = G.H, PX = 0.01, FPS = TL.fps, DURATION = TL.duration;
+const YB = H / 2 - G.baseline;                       // floor = logo baseline (stage px, y up)
+const toS = (x, y) => [x - W / 2, H / 2 - y];        // final-frame px -> stage px
+
+/* ---------------- math ---------------- */
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const smooth = x => x * x * (3 - 2 * x);
+const easeOutCubic = x => 1 - Math.pow(1 - x, 3);
+const easeOutQuart = x => 1 - Math.pow(1 - x, 4);
+const easeInOutCubic = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const bell = (t, a, b) => { const p = prog(t, a, b); return Math.sin(Math.PI * p); };
+const D2R = Math.PI / 180;
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rnd = mulberry32(20261031);
+const rr = (a, b) => a + (b - a) * rnd();
+const inR = (t, a, b) => t >= a && t <= b;
+
+// monotone cubic through knots [[x,y],...] (Fritsch–Carlson)
+function monotone(knots) {
+  const n = knots.length, xs = knots.map(k => k[0]), ys = knots.map(k => k[1]);
+  const d = [], m = [];
+  for (let i = 0; i < n - 1; i++) d.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+  m[0] = d[0]; m[n - 1] = d[n - 2];
+  for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) { m[i] = m[i + 1] = 0; continue; }
+    const a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
+    if (s > 9) { const k = 3 / Math.sqrt(s); m[i] = k * a * d[i]; m[i + 1] = k * b * d[i]; }
+  }
+  return x => {
+    if (x <= xs[0]) return ys[0];
+    if (x >= xs[n - 1]) return ys[n - 1];
+    let i = 0; while (x > xs[i + 1]) i++;
+    const h = xs[i + 1] - xs[i], s = (x - xs[i]) / h;
+    const h00 = 2 * s ** 3 - 3 * s ** 2 + 1, h10 = s ** 3 - 2 * s ** 2 + s, h01 = -2 * s ** 3 + 3 * s ** 2, h11 = s ** 3 - s ** 2;
+    return h00 * ys[i] + h10 * h * m[i] + h01 * ys[i + 1] + h11 * h * m[i + 1];
+  };
+}
+
+// cubic Bezier in the floor plane (x,z) with arc-length lookup
+function bezierXZ(p0, c1, c2, p3) {
+  const pt = s => { const u = 1 - s; return [u * u * u * p0[0] + 3 * s * u * u * c1[0] + 3 * s * s * u * c2[0] + s * s * s * p3[0],
+                                               u * u * u * p0[1] + 3 * s * u * u * c1[1] + 3 * s * s * u * c2[1] + s * s * s * p3[1]]; };
+  const tan = s => { const u = 1 - s; return [3 * u * u * (c1[0] - p0[0]) + 6 * u * s * (c2[0] - c1[0]) + 3 * s * s * (p3[0] - c2[0]),
+                                                3 * u * u * (c1[1] - p0[1]) + 6 * u * s * (c2[1] - c1[1]) + 3 * s * s * (p3[1] - c2[1])]; };
+  const N = 600, acc = [0]; let prev = pt(0);
+  for (let i = 1; i <= N; i++) { const p = pt(i / N); acc.push(acc[i - 1] + Math.hypot(p[0] - prev[0], p[1] - prev[1])); prev = p; }
+  const L = acc[N];
+  const sAt = d => { d = clamp(d, 0, L); let lo = 0, hi = N; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (acc[mid] < d) lo = mid; else hi = mid; }
+    const f = (d - acc[lo]) / Math.max(1e-6, acc[hi] - acc[lo]); return (lo + f) / N; };
+  return { pt, tan, L, sAt };
+}
+
+/* ---------------- renderer / scene ---------------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H, false);
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.localClippingEnabled = true;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const ENV = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+const stage = new THREE.Group(); stage.scale.setScalar(PX); scene.add(stage);
+
+const camera = new THREE.PerspectiveCamera(30, W / H, 0.05, 500);
+const ortho = new THREE.OrthographicCamera(-W / 2 * PX, W / 2 * PX, H / 2 * PX, -H / 2 * PX, 0.05, 500);
+ortho.position.set(0, 0, 100); ortho.lookAt(0, 0, 0);
+
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(1); composer.setSize(W, H);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.45, 0.32, 0.92);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+/* ---------------- procedural textures ---------------- */
+function canvasTex(size, draw, { srgb = true, wrap = false } = {}) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  draw(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; }
+  return t;
+}
+const radial = (stops) => (g, s) => { const r = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2); for (const [o, c] of stops) r.addColorStop(o, c); g.fillStyle = r; g.fillRect(0, 0, s, s); };
+const glowTex = canvasTex(256, radial([[0, 'rgba(255,255,255,1)'], [0.18, 'rgba(255,255,255,0.55)'], [0.5, 'rgba(255,255,255,0.12)'], [1, 'rgba(255,255,255,0)']]));
+const softTex = canvasTex(128, radial([[0, 'rgba(255,255,255,1)'], [0.55, 'rgba(255,255,255,0.45)'], [1, 'rgba(255,255,255,0)']]), { srgb: false });
+const ringTex = canvasTex(256, (g, s) => { g.strokeStyle = 'white'; g.shadowColor = 'white'; g.shadowBlur = s * 0.06; g.lineWidth = s * 0.025; g.beginPath(); g.arc(s / 2, s / 2, s * 0.4, 0, Math.PI * 2); g.stroke(); });
+const starTex = canvasTex(256, (g, s) => {
+  radial([[0, 'rgba(255,255,255,1)'], [0.12, 'rgba(255,255,255,0.6)'], [0.35, 'rgba(255,255,255,0.08)'], [1, 'rgba(255,255,255,0)']])(g, s);
+  for (const [w, h] of [[s, s * 0.035], [s * 0.035, s]]) {
+    const lg = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    lg.addColorStop(0, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = lg; g.fillRect((s - w) / 2, (s - h) / 2, w, h);
+  }
+});
+const hash = (x, y, seed) => { let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(seed, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+function vnoise(x, y, seed) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi; const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash(xi, yi, seed), b = hash(xi + 1, yi, seed), c = hash(xi, yi + 1, seed), d = hash(xi + 1, yi + 1, seed); return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+const smokeTex = [11, 23, 37].map(seed => canvasTex(256, (g, s) => {
+  const img = g.createImageData(s, s);
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    let v = 0, amp = 0.55, f = 3;
+    for (let o = 0; o < 5; o++) { v += amp * vnoise(x / s * f, y / s * f, seed + o * 7); amp *= 0.5; f *= 2; }
+    const dx = x / s - 0.5, dy = y / s - 0.5, r = Math.sqrt(dx * dx + dy * dy) * 2;
+    const mask = Math.pow(clamp(1 - r), 1.7);
+    const a = clamp((v - 0.32) * 2.0) * mask, i = (y * s + x) * 4;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = a * 255;
+  }
+  g.putImageData(img, 0, 0);
+}));
+const hexTex = canvasTex(256, (g, s) => {
+  g.fillStyle = '#3a3a3e'; g.fillRect(0, 0, s, s);
+  const r = s / 6, hx = r * Math.sqrt(3);
+  g.fillStyle = '#050506';
+  for (let row = -1; row < 5; row++) for (let col = -1; col < 4; col++) {
+    const cx = col * hx + (row % 2 ? hx / 2 : 0), cy = row * r * 1.5;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(cx + Math.cos(a) * r * 0.8, cy + Math.sin(a) * r * 0.8); }
+    g.fill();
+  }
+}, { wrap: true });
+const floorAlpha = canvasTex(256, radial([[0, 'rgb(196,196,196)'], [0.18, 'rgb(210,210,210)'], [0.5, 'rgb(252,252,252)'], [1, 'rgb(255,255,255)']]), { srgb: false });
+
+/* ---------------- materials ---------------- */
+const M = {
+  gloss: new THREE.MeshPhysicalMaterial({ color: 0x050506, metalness: 0.0, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03 }),
+  edge: new THREE.MeshPhysicalMaterial({ color: 0xc4c8ce, metalness: 1, roughness: 0.14 }),
+  paint: new THREE.MeshPhysicalMaterial({ color: 0xc80610, metalness: 0.15, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.04 }),
+  paintSide: new THREE.MeshPhysicalMaterial({ color: 0x7a030a, metalness: 0.3, roughness: 0.32, clearcoat: 1 }),
+  swoosh: new THREE.MeshStandardMaterial({ color: 0xff1a28, emissive: 0xff0a16, emissiveIntensity: 2.5, roughness: 0.3, metalness: 0.1 }),
+  alloy: new THREE.MeshPhysicalMaterial({ color: 0xd2d6dc, metalness: 1, roughness: 0.22, clearcoat: 0.5, clearcoatRoughness: 0.08 }),
+  alloyDark: new THREE.MeshStandardMaterial({ color: 0x8a8e95, metalness: 1, roughness: 0.32, side: THREE.DoubleSide }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.05 }),
+  rubber: new THREE.MeshStandardMaterial({ color: 0x18181a, metalness: 0, roughness: 0.82 }),
+  tread: new THREE.MeshStandardMaterial({ color: 0x111112, metalness: 0, roughness: 0.92 }),
+  steel: new THREE.MeshStandardMaterial({ color: 0x6c7076, metalness: 1, roughness: 0.4 }),
+  caliper: new THREE.MeshPhysicalMaterial({ color: 0xd00a12, metalness: 0.1, roughness: 0.28, clearcoat: 1 }),
+  capRed: new THREE.MeshStandardMaterial({ color: 0xff1a22, emissive: 0xff0010, emissiveIntensity: 0.5, roughness: 0.3 }),
+  floor: new THREE.MeshStandardMaterial({ color: 0x040405, metalness: 0.0, roughness: 0.55, transparent: true, alphaMap: floorAlpha }),
+  wall: new THREE.MeshStandardMaterial({ color: 0x232327, map: hexTex, metalness: 0.75, roughness: 0.45 }),
+};
+const ENV_BASE = { gloss: 1.25, edge: 1.4, paint: 1.0, paintSide: 0.9, swoosh: 0.5, alloy: 1.0, alloyDark: 1.0, chrome: 1.4,
+                   rubber: 0.7, tread: 0.6, steel: 1.0, caliper: 1.0, capRed: 0.6, floor: 0.12, wall: 0.08 };
+for (const [k, m] of Object.entries(M)) { m.envMap = ENV; m.envMapIntensity = ENV_BASE[k]; }
+const swooshClip = new THREE.Plane(new THREE.Vector3(-1, 0, 0), -1000);
+M.swoosh.clippingPlanes = [swooshClip];
+
+/* ---------------- logo geometry -> 3D ---------------- */
+function partShape(part, pv) {
+  const P = ([x, y]) => { const [sx, sy] = toS(x, y); return new THREE.Vector2(sx - pv[0], sy - pv[1]); };
+  const s = new THREE.Shape(part.outer.map(P));
+  for (const h of part.holes) s.holes.push(new THREE.Path(h.map(P)));
+  return s;
+}
+const centroid = pts => { let x = 0, y = 0; for (const p of pts) { const s = toS(p[0], p[1]); x += s[0]; y += s[1]; } return [x / pts.length, y / pts.length]; };
+const EMB_DEPTH = 40;
+const emblem = {};
+const EMB_Z = { stem: 0, bowl: -1.5, leg: -3 };   // stem in front so overlaps read as machined seams
+for (const k of ['stem', 'bowl', 'leg']) {
+  const pv = centroid(G.emblem[k].outer);
+  const geo = new THREE.ExtrudeGeometry(partShape(G.emblem[k], pv), { depth: EMB_DEPTH, bevelEnabled: true, bevelThickness: 4, bevelSize: 3, bevelSegments: 3, curveSegments: 10 });
+  geo.translate(0, 0, -EMB_DEPTH / 2);
+  const m = new THREE.Mesh(geo, [M.gloss, M.edge]);
+  m.userData.home = new THREE.Vector3(pv[0], pv[1], EMB_Z[k]);
+  m.position.copy(m.userData.home);
+  stage.add(m); emblem[k] = m;
+}
+const swPv = centroid(G.emblem.swoosh.outer);
+const swGeo = new THREE.ExtrudeGeometry(partShape(G.emblem.swoosh, swPv), { depth: 14, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2, bevelSegments: 2, curveSegments: 10 });
+swGeo.translate(0, 0, -7);
+const swoosh = new THREE.Mesh(swGeo, M.swoosh);
+const SW_Z = EMB_DEPTH / 2 + 4 + 11;
+swoosh.position.set(swPv[0], swPv[1], SW_Z);
+stage.add(swoosh);
+
+function glyphGeo(cmds, pv, depth) {
+  const sp = new THREE.ShapePath();
+  const P = (x, y) => { const s = toS(x, y); return [s[0] - pv[0], s[1] - pv[1]]; };
+  for (const c of cmds) {
+    if (c.type === 'M') sp.moveTo(...P(c.x, c.y));
+    else if (c.type === 'L') sp.lineTo(...P(c.x, c.y));
+    else if (c.type === 'Q') sp.quadraticCurveTo(...P(c.x1, c.y1), ...P(c.x, c.y));
+    else if (c.type === 'C') sp.bezierCurveTo(...P(c.x1, c.y1), ...P(c.x2, c.y2), ...P(c.x, c.y));
+  }
+  const g = new THREE.ExtrudeGeometry(sp.toShapes(false), { depth, bevelEnabled: true, bevelThickness: 3, bevelSize: 2.2, bevelSegments: 3, curveSegments: 12 });
+  g.translate(0, 0, -depth / 2);
+  return g;
+}
+const letters = {};
+for (const k of ['R', 'D']) {
+  const L = G.letters[k];
+  const pv = [L.bbox.x + L.bbox.w / 2 - W / 2, YB];
+  const m = new THREE.Mesh(glyphGeo(L.cmds, pv, 44), [M.paint, M.paintSide]);
+  m.userData.home = new THREE.Vector3(pv[0], pv[1], 0);
+  stage.add(m); letters[k] = m;
+}
+
+/* ---------------- tyre + alloy wheel ---------------- */
+function makeWheel() {
+  const Rw = G.wheelR, k = Rw / 101;
+  const root = new THREE.Group(), spin = new THREE.Group(); root.add(spin);
+  const prof = [[64, 28], [68, 31.5], [76, 34.5], [86, 36], [94, 35], [98.6, 31.5], [100.6, 26.5], [101, 20], [101, -20], [100.6, -26.5], [98.6, -31.5], [94, -35], [86, -36], [76, -34.5], [68, -31.5], [64, -28]]
+    .map(([r, z]) => new THREE.Vector2(r * k, z * k)).reverse();
+  const tyre = new THREE.LatheGeometry(prof, 128); tyre.rotateX(Math.PI / 2);
+  spin.add(new THREE.Mesh(tyre, M.rubber));
+  // sidewall rings for a bit of detail
+  for (const z of [33.5, -33.5]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(88 * k, 0.9, 6, 128), M.rubber); ring.position.z = z * k; spin.add(ring); }
+  // tread blocks
+  const nb = 60, bw = 2 * Math.PI * Rw / nb * 0.6;
+  const block = new THREE.BoxGeometry(bw, 5, 15 * k);
+  const tread = new THREE.InstancedMesh(block, M.tread, nb * 2);
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1);
+  let n = 0;
+  for (const row of [-1, 1]) for (let i = 0; i < nb; i++) {
+    const a = (i + (row > 0 ? 0.5 : 0)) * Math.PI * 2 / nb;
+    q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), a - Math.PI / 2);
+    mtx.compose(new THREE.Vector3(Math.cos(a) * (Rw + 0.6), Math.sin(a) * (Rw + 0.6), row * 12 * k), q, sc);
+    tread.setMatrixAt(n++, mtx);
+  }
+  spin.add(tread);
+  // rim barrel + polished lip
+  const barrel = new THREE.CylinderGeometry(63 * k, 63 * k, 54 * k, 72, 1, true); barrel.rotateX(Math.PI / 2);
+  spin.add(new THREE.Mesh(barrel, M.alloyDark));
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(63.5 * k, 3.4 * k, 14, 128), M.chrome); lip.position.z = 26 * k; spin.add(lip);
+  // alloy face: 5 twin spokes, dished towards the hub
+  const face = new THREE.Shape(); face.absarc(0, 0, 61 * k, 0, Math.PI * 2, false);
+  const sw = 7.5 * k, rIn = 25 * k, rOut = 55 * k;
+  const win = (ta, tb, r0) => {
+    const d = r => Math.asin(Math.min(0.99, sw / 2 / r));
+    const pts = [], N = 10;
+    for (let i = 0; i <= N; i++) { const r = lerp(r0, rOut, i / N); const a = ta + d(r); pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r)); }
+    const a0 = ta + d(rOut), a1 = tb - d(rOut);
+    for (let i = 1; i < 14; i++) { const a = lerp(a0, a1, i / 14); pts.push(new THREE.Vector2(Math.cos(a) * rOut, Math.sin(a) * rOut)); }
+    for (let i = N; i >= 0; i--) { const r = lerp(r0, rOut, i / N); const a = tb - d(r); pts.push(new THREE.Vector2(Math.cos(a) * r, Math.sin(a) * r)); }
+    const b0 = tb - d(r0), b1 = ta + d(r0);
+    for (let i = 1; i < 6; i++) { const a = lerp(b0, b1, i / 6); pts.push(new THREE.Vector2(Math.cos(a) * r0, Math.sin(a) * r0)); }
+    return new THREE.Path(pts);
+  };
+  for (let p = 0; p < 5; p++) {
+    const c = Math.PI / 2 + p * 2 * Math.PI / 5, half = 9 * D2R;
+    face.holes.push(win(c + half, c + 2 * Math.PI / 5 - half, rIn));   // big window between pairs
+    face.holes.push(win(c - half, c + half, 33 * k));                  // slim slot inside a twin spoke
+  }
+  const fg = new THREE.ExtrudeGeometry(face, { depth: 8 * k, bevelEnabled: true, bevelThickness: 2.4 * k, bevelSize: 1.8 * k, bevelSegments: 2, curveSegments: 72 });
+  const pa = fg.attributes.position;
+  for (let i = 0; i < pa.count; i++) { const r = Math.hypot(pa.getX(i), pa.getY(i)); pa.setZ(i, pa.getZ(i) - Math.max(0, 58 * k - r) * 0.22); }
+  const faceMesh = new THREE.Mesh(fg, M.alloy); faceMesh.position.z = 14 * k; spin.add(faceMesh);
+  // hub, centre cap (brand red ring), lug nuts
+  const cap = new THREE.CylinderGeometry(15 * k, 16 * k, 6 * k, 48); cap.rotateX(Math.PI / 2);
+  const capM = new THREE.Mesh(cap, M.chrome); capM.position.z = 13 * k; spin.add(capM);
+  const capRing = new THREE.Mesh(new THREE.TorusGeometry(11.5 * k, 1.7 * k, 8, 48), M.capRed); capRing.position.z = 16.3 * k; spin.add(capRing);
+  const nut = new THREE.CylinderGeometry(2.8 * k, 2.8 * k, 5 * k, 6); nut.rotateX(Math.PI / 2);
+  for (let i = 0; i < 5; i++) { const a = Math.PI / 2 + Math.PI / 5 + i * 2 * Math.PI / 5; const m = new THREE.Mesh(nut, M.chrome); m.position.set(Math.cos(a) * 20.5 * k, Math.sin(a) * 20.5 * k, 12.5 * k); spin.add(m); }
+  // brake disc + caliper (caliper does not spin)
+  const disc = new THREE.CylinderGeometry(51 * k, 51 * k, 5 * k, 96); disc.rotateX(Math.PI / 2);
+  const discM = new THREE.Mesh(disc, M.steel); discM.position.z = -6 * k; spin.add(discM);
+  const hat = new THREE.CylinderGeometry(25 * k, 25 * k, 12 * k, 48); hat.rotateX(Math.PI / 2);
+  const hatM = new THREE.Mesh(hat, M.steel); hatM.position.z = 0; spin.add(hatM);
+  const cs = new THREE.Shape(); const ca0 = 18 * D2R, ca1 = 74 * D2R;
+  cs.absarc(0, 0, 57 * k, ca0, ca1, false); cs.absarc(0, 0, 40 * k, ca1, ca0, true);
+  const cg = new THREE.ExtrudeGeometry(cs, { depth: 13 * k, bevelEnabled: true, bevelThickness: 2 * k, bevelSize: 2 * k, bevelSegments: 2, curveSegments: 24 });
+  const caliper = new THREE.Mesh(cg, M.caliper); caliper.position.z = -6 * k; root.add(caliper);
+  return { root, spin };
+}
+
+/* ---------------- floor, mirror, wall, haze ---------------- */
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(9000, 9000), M.floor);
+floor.rotation.x = -Math.PI / 2; floor.position.set(0, YB, 0); floor.renderOrder = 2;
+stage.add(floor);
+const wall = new THREE.Mesh(new THREE.PlaneGeometry(8000, 3600), M.wall);
+wall.position.set(0, YB + 1600, -1400);   // (not added: a pure black void reads cleaner)
+hexTex.repeat.set(8000 / 70, 3600 / 70);
+
+const mirror = new THREE.Group(); mirror.matrixAutoUpdate = false;
+mirror.matrix.makeTranslation(0, YB, 0).multiply(new THREE.Matrix4().makeScale(1, -1, 1)).multiply(new THREE.Matrix4().makeTranslation(0, -YB, 0));
+stage.add(mirror);
+const mirrorPairs = [];
+function addMirror(obj) {
+  const c = obj.clone(true); mirror.add(c);
+  const a = [], b = []; obj.traverse(o => a.push(o)); c.traverse(o => b.push(o));
+  a.forEach((o, i) => mirrorPairs.push([o, b[i]]));
+}
+const syncMirror = () => { for (const [o, c] of mirrorPairs) { c.position.copy(o.position); c.quaternion.copy(o.quaternion); c.scale.copy(o.scale); c.visible = o.visible; } };
+
+function blob(opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softTex, transparent: true, opacity, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2; m.position.y = YB + 0.8; m.renderOrder = 3; stage.add(m); return m;
+}
+
+const haze = [];
+for (let i = 0; i < 14; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex[i % 3], color: 0x5c585a, transparent: true, opacity: 0, depthWrite: false }));
+  s.userData = { x: rr(-1500, 1300), y: rr(YB + 60, YB + 700), z: rr(-1100, -350), size: rr(900, 1600), rot: rr(0, 6.28), vr: rr(-0.05, 0.05), vx: rr(8, 22), a: rr(0.025, 0.055) };
+  stage.add(s); haze.push(s);
+}
+
+/* ---------------- wheels ---------------- */
+const WHEEL_SPIN_MAX = 44;   // rad/s
+const wheels = [0, 1].map(i => {
+  const w = makeWheel();
+  const home = toS(G.wheels[i].cx, G.wheels[i].cy);
+  const def = i === 0
+    ? { tt: TL.wheelA, path: bezierXZ([-1700, 620], [-950, 620], [-260, 0], [home[0], 0]), face: +1, spinSign: -1 }
+    : { tt: TL.wheelB, path: bezierXZ([2150, -1000], [1400, -1000], [880, 0], [home[0], 0]), face: -1, spinSign: +1 };
+  Object.assign(w, def, { home, shadow: blob(0.75) });
+  stage.add(w.root);
+  // integrate spin angle: full spin from entry, decays to a stop at spinStop with spokes aligned
+  const dt = 1 / 1200, n = Math.ceil(DURATION / dt) + 2, tbl = new Float32Array(n);
+  const omega = t => t < w.tt[0] ? 0 : WHEEL_SPIN_MAX * (t < TL.spinStop - 0.48 ? lerp(0.75, 1, prog(t, w.tt[0], w.tt[0] + 0.3)) : smooth(1 - prog(t, TL.spinStop - 0.48, TL.spinStop)));
+  for (let j = 1; j < n; j++) tbl[j] = tbl[j - 1] + omega((j - 0.5) * dt) * dt;
+  const end = tbl[n - 1], step = 2 * Math.PI / 5, target = Math.round(end / step) * step, scale = target / end;
+  w.angle = t => w.spinSign * tbl[Math.min(n - 1, Math.max(0, Math.round(t / dt)))] * scale;
+  return w;
+});
+function wheelPose(w, t) {
+  const p = prog(t, w.tt[0], w.tt[1]);
+  const d = w.path.L * easeOutCubic(p);
+  const s = w.path.sAt(d), [x, z] = w.path.pt(s), [tx, tz] = w.path.tan(s);
+  const yaw = w.face > 0 ? Math.atan2(-tz, tx) : Math.atan2(tz, -tx);
+  return { x, z, yaw, s, moving: p < 1, dirX: tx / Math.hypot(tx, tz), dirZ: tz / Math.hypot(tx, tz) };
+}
+
+/* ---------------- letter slides ---------------- */
+const slides = {
+  R: { tt: TL.R, m: letters.R, path: bezierXZ([-1250, 560], [-760, 560], [letters.R.userData.home.x - 30, 280], [letters.R.userData.home.x, 0]), yaw0: -0.55, shadow: blob(0.7) },
+  D: { tt: TL.D, m: letters.D, path: bezierXZ([1550, -720], [1000, -720], [letters.D.userData.home.x + 20, -360], [letters.D.userData.home.x, 0]), yaw0: 0.5, shadow: blob(0.7) },
+};
+function slidePose(sl, t) {
+  const p = prog(t, sl.tt[0], sl.tt[1]);
+  const e = easeOutQuart(p);
+  const s = sl.path.sAt(sl.path.L * e), [x, z] = sl.path.pt(s);
+  const after = t - sl.tt[1];
+  const recoil = after > 0 ? Math.exp(-after * 16) * Math.sin(after * 58) : 0;
+  return { x, z: z + recoil * 6, yaw: sl.yaw0 * (1 - smooth(p)), tilt: -recoil * 0.05, p };
+}
+
+/* ---------------- emblem assembly ---------------- */
+const partAnim = {
+  stem: { tt: TL.parts.stem, from: new THREE.Vector3(-620, -160, 760), rot: [0.8, -1.4, 0.6] },
+  bowl: { tt: TL.parts.bowl, from: new THREE.Vector3(560, 460, 620), rot: [-1.0, 1.2, -0.7] },
+  leg:  { tt: TL.parts.leg,  from: new THREE.Vector3(520, -520, 560), rot: [1.1, 0.9, 0.8] },
+};
+
+/* ---------------- light streak ---------------- */
+const swLine = G.emblem.swooshLine.map(([x, y]) => { const s = toS(x, y); return new THREE.Vector3(s[0], s[1], SW_Z + 10); });
+const s0 = swLine[0], s1 = swLine[swLine.length - 1];
+const dirEnd = s1.clone().sub(swLine[swLine.length - 5]).normalize();
+const streakPts = [
+  new THREE.Vector3(s0.x - 1250, s0.y + 380, 380), new THREE.Vector3(s0.x - 780, s0.y + 90, 250),
+  new THREE.Vector3(s0.x - 380, s0.y - 60, 120), new THREE.Vector3(s0.x - 130, s0.y - 32, 40),
+  ...swLine.filter((_, i) => i % 4 === 0),
+  s1.clone().addScaledVector(dirEnd, 170).add(new THREE.Vector3(0, 10, -30)),
+  s1.clone().addScaledVector(dirEnd, 520).add(new THREE.Vector3(80, 120, -300)),
+];
+const streakCurve = new THREE.CatmullRomCurve3(streakPts, false, 'centripetal');
+streakCurve.arcLengthDivisions = 3000;
+const uNear = (v) => { let best = 0, bd = 1e9; for (let i = 0; i <= 3000; i++) { const d = streakCurve.getPointAt(i / 3000).distanceToSquared(v); if (d < bd) { bd = d; best = i / 3000; } } return best; };
+const uS0 = uNear(s0), uS1 = uNear(s1);
+const streakU = monotone([[0, 0], [0.5, uS0], [0.86, uS1], [1, 1]]);
+
+function makeRibbon(maxN) {
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(maxN * 9), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(maxN * 9), 3).setUsage(THREE.DynamicDrawUsage));
+  const idx = [];
+  for (let i = 0; i < maxN - 1; i++) { const a = i * 3, b = a + 3; idx.push(a, b, a + 1, b, b + 1, a + 1, a + 1, b + 1, a + 2, b + 1, b + 2, a + 2); }
+  geo.setIndex(idx);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  mesh.frustumCulled = false; mesh.renderOrder = 10; mesh.userData.maxN = maxN;
+  stage.add(mesh); return mesh;
+}
+const _t = new THREE.Vector3(), _v = new THREE.Vector3(), _s = new THREE.Vector3();
+function setRibbon(mesh, pts, widthAt, colorAt, camS) {
+  const n = Math.min(pts.length, mesh.userData.maxN);
+  const pos = mesh.geometry.attributes.position.array, col = mesh.geometry.attributes.color.array;
+  for (let i = 0; i < n; i++) {
+    const p = pts[i], pn = pts[Math.min(n - 1, i + 1)], pp = pts[Math.max(0, i - 1)];
+    _t.subVectors(pn, pp).normalize(); _v.subVectors(camS, p).normalize(); _s.crossVectors(_t, _v).normalize().multiplyScalar(widthAt(i / (n - 1)) / 2);
+    const o = i * 9, c = colorAt(i / (n - 1));
+    pos[o] = p.x - _s.x; pos[o + 1] = p.y - _s.y; pos[o + 2] = p.z - _s.z;
+    pos[o + 3] = p.x; pos[o + 4] = p.y; pos[o + 5] = p.z;
+    pos[o + 6] = p.x + _s.x; pos[o + 7] = p.y + _s.y; pos[o + 8] = p.z + _s.z;
+    col[o] = col[o + 1] = col[o + 2] = 0; col[o + 3] = c[0]; col[o + 4] = c[1]; col[o + 5] = c[2]; col[o + 6] = col[o + 7] = col[o + 8] = 0;
+  }
+  mesh.geometry.setDrawRange(0, Math.max(0, (n - 1) * 12));
+  mesh.geometry.attributes.position.needsUpdate = true; mesh.geometry.attributes.color.needsUpdate = true;
+  mesh.visible = n > 1;
+}
+const streakGlow = makeRibbon(200), streakCore = makeRibbon(200);
+const trails = [makeRibbon(120), makeRibbon(120), makeRibbon(80), makeRibbon(80)];   // wheel A, wheel B, R, D
+
+function addSprite(tex, color, blending = THREE.AdditiveBlending, renderOrder = 11) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, blending, depthWrite: false, opacity: 0 }));
+  s.renderOrder = renderOrder; stage.add(s); return s;
+}
+const headGlow = addSprite(glowTex, new THREE.Color(6, 1.6, 1.2));
+const headStreak = addSprite(glowTex, new THREE.Color(2.4, 0.35, 0.25));
+const flareA = addSprite(starTex, new THREE.Color(5, 3.2, 2.6));
+const backGlow = addSprite(glowTex, new THREE.Color(0.15, 0.009, 0.006), THREE.AdditiveBlending, 0);   // deep red light behind the logo
+
+/* ---------------- lights ---------------- */
+const key = new THREE.SpotLight(0xffffff, 0, 0, 0.42, 0.75, 0); key.position.set(-6, 9, 13); stage.parent.add(key); scene.add(key.target); key.target.position.set(0, -0.6, 0);
+const rim = new THREE.SpotLight(0xff2a18, 0, 0, 0.6, 0.8, 0); rim.position.set(10, 5, -9); scene.add(rim); scene.add(rim.target); rim.target.position.set(-1, -0.5, 0);
+const front = new THREE.SpotLight(0xfff2ea, 0, 0, 0.5, 0.8, 0); front.position.set(-3, 9, 11); scene.add(front); scene.add(front.target); front.target.position.set(1.5, -0.6, 0);
+const streakLight = new THREE.PointLight(0xff2010, 0, 8, 0); stage.add(streakLight);
+const sweepLight = new THREE.PointLight(0xffffff, 0, 5, 0); stage.add(sweepLight);
+
+/* ---------------- smoke puffs ---------------- */
+const puffs = [];
+function puffSprite(color) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex[puffs.length % 3], color, transparent: true, depthWrite: false, opacity: 0 })); s.renderOrder = 5; stage.add(s); return s; }
+for (const w of wheels) {
+  for (let ts = w.tt[0] + 0.04; ts < TL.spinStop + 0.02; ts += 1 / 52) {
+    const pose = wheelPose(w, ts);
+    const burn = ts > w.tt[1] - 0.05;
+    puffs.push({ sprite: puffSprite(0xc4c4c8), ts, life: rr(1.0, 1.6),
+      p0: new THREE.Vector3(pose.x - pose.dirX * 45 * w.face + rr(-12, 12), YB + rr(8, 22), pose.z - pose.dirZ * 45 * w.face + rr(-30, 30)),
+      v: new THREE.Vector3(-pose.dirX * w.face * rr(burn ? 260 : 120, burn ? 520 : 260) + rr(-40, 40), rr(60, 170), rr(-90, 90)),
+      s0: rr(60, 110), s1: rr(320, 520), rot: rr(0, 6.28), vr: rr(-1, 1), a: burn ? rr(0.28, 0.42) : rr(0.16, 0.26) });
+  }
+}
+for (const k of ['R', 'D']) {
+  const sl = slides[k], h = sl.m.userData.home;
+  for (let i = 0; i < 12; i++) {
+    const a = rr(0, Math.PI * 2);
+    puffs.push({ sprite: puffSprite(0x8c8a8e), ts: sl.tt[1] + rr(-0.02, 0.05), life: rr(0.7, 1.2),
+      p0: new THREE.Vector3(h.x + rr(-80, 80), YB + rr(5, 20), rr(-20, 30)),
+      v: new THREE.Vector3(Math.cos(a) * rr(120, 380), rr(30, 120), Math.sin(a) * rr(60, 200)),
+      s0: rr(40, 80), s1: rr(200, 340), rot: rr(0, 6.28), vr: rr(-1, 1), a: rr(0.14, 0.24) });
+  }
+}
+
+/* ---------------- sparks ---------------- */
+const sparks = [];
+function burst(t0, origin, n, { dir = [0, 1, 0], spread = 1, speed = [300, 900], life = [0.25, 0.6], hot = 1 } = {}) {
+  for (let i = 0; i < n; i++) {
+    const v = new THREE.Vector3(dir[0] + rr(-spread, spread), dir[1] + rr(-spread * 0.5, spread), dir[2] + rr(-spread, spread)).normalize().multiplyScalar(rr(speed[0], speed[1]));
+    sparks.push({ t0: t0 + rr(0, 0.03), p0: origin.clone().add(new THREE.Vector3(rr(-10, 10), rr(-6, 6), rr(-10, 10))), v, life: rr(life[0], life[1]), hot });
+  }
+}
+for (const [k, a] of Object.entries(partAnim)) {
+  const h = emblem[k].userData.home;
+  burst(a.tt[1], new THREE.Vector3(h.x, h.y, 30), 26, { dir: [0, 0.4, 1], spread: 1.1, speed: [250, 800] });
+}
+for (const k of ['R', 'D']) {
+  const sl = slides[k];
+  for (let ts = sl.tt[0] + 0.02; ts < sl.tt[1] - 0.02; ts += 1 / 110) {
+    const pz = slidePose(sl, ts), back = sl.path.tan(sl.path.sAt(sl.path.L * easeOutQuart(prog(ts, sl.tt[0], sl.tt[1])))), bl = Math.hypot(back[0], back[1]);
+    burst(ts, new THREE.Vector3(pz.x - back[0] / bl * 70, YB + 2, pz.z - back[1] / bl * 70), 2, { dir: [-back[0] / bl, 0.35, -back[1] / bl], spread: 0.35, speed: [500, 1100], life: [0.15, 0.35] });
+  }
+  const h = sl.m.userData.home;
+  burst(sl.tt[1], new THREE.Vector3(h.x, YB + 10, 25), 40, { dir: [0, 0.9, 0.5], spread: 1.2, speed: [300, 1000], life: [0.25, 0.65] });
+}
+const MAXSP = sparks.length;
+const spGeo = new THREE.BufferGeometry();
+spGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAXSP * 12), 3).setUsage(THREE.DynamicDrawUsage));
+spGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAXSP * 12), 3).setUsage(THREE.DynamicDrawUsage));
+{ const idx = []; for (let i = 0; i < MAXSP; i++) { const a = i * 4; idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3); } spGeo.setIndex(idx); }
+const spMesh = new THREE.Mesh(spGeo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+spMesh.frustumCulled = false; spMesh.renderOrder = 12; stage.add(spMesh);
+const GRAV = -2200;
+const sparkPos = (s, age, out) => { out.copy(s.p0).addScaledVector(s.v, age); out.y += 0.5 * GRAV * age * age; if (out.y < YB + 1) out.y = YB + 1 + (YB + 1 - out.y) * 0.25; return out; };
+
+/* ---------------- glints, rings ---------------- */
+const glints = [
+  { t0: TL.parts.stem[1], dur: 0.35, pos: () => emblem.stem.userData.home.clone().add(new THREE.Vector3(-26, 130, 28)), size: 260 },
+  { t0: TL.parts.bowl[1], dur: 0.35, pos: () => emblem.bowl.userData.home.clone().add(new THREE.Vector3(60, 60, 28)), size: 240 },
+  { t0: TL.sweep[1] - 0.05, dur: 0.45, pos: () => new THREE.Vector3(s1.x, s1.y, SW_Z + 12), size: 380 },
+  { t0: TL.lock, dur: 0.4, pos: () => new THREE.Vector3(wheels[0].home[0] - 60, wheels[0].home[1] + 66, 40), size: 300 },
+  { t0: TL.lock + 0.06, dur: 0.4, pos: () => new THREE.Vector3(wheels[1].home[0] - 60, wheels[1].home[1] + 66, 40), size: 300 },
+  { t0: TL.settle + 0.02, dur: 0.5, pos: () => emblem.bowl.userData.home.clone().add(new THREE.Vector3(70, 70, 28)), size: 300 },
+].map(g => ({ ...g, sprite: addSprite(starTex, new THREE.Color(4, 3.6, 3.4)) }));
+const rings = [0, 1].map(i => ({ t0: TL.lock + i * 0.06, sprite: addSprite(ringTex, new THREE.Color(3.5, 0.5, 0.3)) }));
+
+/* ---------------- reflections ---------------- */
+for (const k of ['stem', 'bowl', 'leg']) addMirror(emblem[k]);
+addMirror(swoosh); addMirror(letters.R); addMirror(letters.D);
+for (const w of wheels) addMirror(w.root);
+const emblemShadow = blob(0.8);
+
+/* ---------------- camera ---------------- */
+const CK = [
+  { t: 0.00, T: [-470, 40, 0],   h: 620,  yaw: -18, pitch: 8, roll: -4,  fov: 34 },
+  { t: 1.05, T: [-468, 15, 0],   h: 540,  yaw: -6,  pitch: 5, roll: -1.5, fov: 33 },
+  { t: 2.15, T: [-458, 0, 0],    h: 470,  yaw: 6,   pitch: 3, roll: 0.6, fov: 31 },
+  { t: 2.70, T: [-260, -15, 0],  h: 560,  yaw: 9,   pitch: 4, roll: 0.6, fov: 30 },
+  { t: 3.45, T: [190, -35, 0],   h: 650,  yaw: -9,  pitch: 6, roll: -1,  fov: 28 },
+  { t: 4.25, T: [80, -20, 0],    h: 780,  yaw: -4,  pitch: 4, roll: 0,   fov: 25 },
+  { t: TL.settle, T: [0, 0, 0],  h: 1080, yaw: 0,   pitch: 0, roll: 0,   fov: 20 },
+];
+const camFns = {};
+for (const key of ['Tx', 'Ty', 'h', 'yaw', 'pitch', 'roll', 'fov']) {
+  const val = k => key === 'Tx' ? k.T[0] : key === 'Ty' ? k.T[1] : k[key];
+  const ts = CK.map(k => k.t), vs = CK.map(val), n = CK.length;
+  const m = vs.map((v, i) => (i === 0 || i === n - 1) ? 0 : (vs[i + 1] - vs[i - 1]) / (ts[i + 1] - ts[i - 1]));
+  camFns[key] = t => {
+    if (t <= ts[0]) return vs[0]; if (t >= ts[n - 1]) return vs[n - 1];
+    let i = 0; while (t > ts[i + 1]) i++;
+    const h = ts[i + 1] - ts[i], s = (t - ts[i]) / h;
+    const h00 = 2 * s ** 3 - 3 * s ** 2 + 1, h10 = s ** 3 - 2 * s ** 2 + s, h01 = -2 * s ** 3 + 3 * s ** 2, h11 = s ** 3 - s ** 2;
+    return h00 * vs[i] + h10 * h * m[i] + h01 * vs[i + 1] + h11 * h * m[i + 1];
+  };
+}
+const impacts = [
+  [TL.parts.stem[1], 7], [TL.parts.bowl[1], 7], [TL.parts.leg[1], 8],
+  [TL.wheelA[1], 4], [TL.wheelB[1], 4], [TL.lock, 3], [TL.R[1], 13], [TL.D[1], 14],
+];
+function shake(t) {
+  let a = 0;
+  for (const [ti, amp] of impacts) if (t >= ti) a += amp * Math.exp(-(t - ti) * 11);
+  return { x: a * (Math.sin(t * 91) * 0.6 + Math.sin(t * 157 + 1.7) * 0.4), y: a * (Math.sin(t * 113 + 0.4) * 0.6 + Math.sin(t * 181 + 2.1) * 0.4), r: a * 0.0009 * Math.sin(t * 67 + 0.9) };
+}
+const camS = new THREE.Vector3();
+function setCamera(t) {
+  const fov = camFns.fov(t), h = camFns.h(t), yaw = camFns.yaw(t) * D2R, pitch = camFns.pitch(t) * D2R;
+  const settled = t >= TL.settle;
+  const sh = settled ? { x: 0, y: 0, r: 0 } : shake(t);
+  const target = new THREE.Vector3(camFns.Tx(t) + sh.x, camFns.Ty(t) + sh.y, 0);
+  const dist = (h / 2) / Math.tan(fov / 2 * D2R);
+  camera.fov = fov; camera.updateProjectionMatrix();
+  camS.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, Math.cos(yaw) * Math.cos(pitch) * dist);
+  camera.position.copy(camS).multiplyScalar(PX);
+  camera.up.set(0, 1, 0);
+  camera.lookAt(target.multiplyScalar(PX));
+  camera.rotateZ(camFns.roll(t) * D2R + sh.r);
+}
+
+/* ---------------- per-time scene update ---------------- */
+const _p = new THREE.Vector3(), _q = new THREE.Vector3();
+function update(t) {
+  setCamera(t);
+
+  // global light levels
+  const lightUp = smooth(prog(t, 1.35, 2.3));
+  const envG = lerp(0.1, 0.62, lightUp) + 0.12 * smooth(prog(t, 4.3, TL.settle));
+  for (const [k, m] of Object.entries(M)) m.envMapIntensity = ENV_BASE[k] * (k === 'wall' || k === 'floor' ? 1 : envG);
+  key.intensity = 2.2 * lightUp + 0.8 * smooth(prog(t, 4.3, TL.settle));
+  rim.intensity = 3.6 * smooth(prog(t, 0.3, 1.1));
+  front.intensity = 1.4 * smooth(prog(t, 2.5, 3.3));
+  bloom.strength = lerp(0.6, 0.4, smooth(prog(t, 2.0, 3.0)));
+  { const g = smooth(prog(t, 2.6, TL.settle));
+    backGlow.position.set(lerp(-460, 0, g), lerp(60, 40, g), -650); backGlow.scale.setScalar(lerp(1700, 2900, g));
+    backGlow.material.opacity = smooth(prog(t, 0.6, 1.8)) * (1 - 0.25 * g); }
+
+  // haze
+  for (const s of haze) {
+    const d = s.userData;
+    s.position.set(d.x + d.vx * t, d.y, d.z);
+    s.scale.setScalar(d.size); s.material.rotation = d.rot + d.vr * t;
+    s.material.opacity = d.a * (0.35 + 0.65 * smooth(prog(t, 0.4, 1.6)));
+  }
+
+  // light streak
+  const [st0, st1] = TL.streak;
+  const sp = prog(t, st0, st1);
+  const uHead = streakU(sp);
+  const fadeOut = 1 - smooth(prog(t, st1, st1 + 0.35));
+  const live = t > st0 && fadeOut > 0;
+  if (live) {
+    const uTail = Math.max(0, uHead - 0.34 * (0.6 + 0.4 * sp) - 0.35 * prog(t, st1, st1 + 0.35));
+    const N = 180, pts = [];
+    for (let i = 0; i < N; i++) pts.push(streakCurve.getPointAt(lerp(uTail, Math.max(uTail + 1e-4, uHead), i / (N - 1))));
+    const f = fadeOut;
+    setRibbon(streakGlow, pts, s => lerp(10, 46, s * s), s => [2.4 * s * s * f, 0.14 * s * s * f, 0.08 * s * s * f], camS);
+    setRibbon(streakCore, pts, s => lerp(2, 7, s), s => [lerp(1.5, 8, s * s) * f, lerp(0.05, 5, Math.pow(s, 4)) * f, lerp(0.03, 4.2, Math.pow(s, 4)) * f], camS);
+    const hp = streakCurve.getPointAt(uHead);
+    headGlow.position.copy(hp); headGlow.scale.setScalar(180 * (0.7 + 0.3 * f)); headGlow.material.opacity = f;
+    headStreak.position.copy(hp); headStreak.scale.set(1100, 30, 1); headStreak.material.opacity = 0.8 * f;
+    streakLight.position.copy(hp).add(new THREE.Vector3(0, 0, 90)); streakLight.intensity = 26 * f;
+    swooshClip.constant = uHead >= uS1 ? 1000 : hp.x * PX;
+  } else {
+    streakGlow.visible = streakCore.visible = false;
+    headGlow.material.opacity = headStreak.material.opacity = 0; streakLight.intensity = 0;
+    swooshClip.constant = t < st0 ? -1000 : 1000;
+  }
+  M.swoosh.emissiveIntensity = lerp(4.2, 1.7, smooth(prog(t, st1, 2.4)));
+  const fl = bell(t, st1 - 0.12, st1 + 0.25);
+  flareA.position.set(s1.x + dirEnd.x * 60, s1.y + dirEnd.y * 60, SW_Z + 20); flareA.scale.setScalar(520 * fl + 1); flareA.material.opacity = fl;
+
+  // emblem parts
+  for (const [k, a] of Object.entries(partAnim)) {
+    const m = emblem[k], h = m.userData.home, p = prog(t, a.tt[0], a.tt[1]);
+    m.visible = t >= a.tt[0];
+    const e = easeOutCubic(p), inv = 1 - e;
+    const after = t - a.tt[1], recoil = after > 0 ? Math.exp(-after * 18) * Math.sin(after * 64) : 0;
+    m.position.set(h.x + a.from.x * inv, h.y + a.from.y * inv, h.z + a.from.z * inv - recoil * 7);
+    m.rotation.set(a.rot[0] * inv, a.rot[1] * inv, a.rot[2] * inv);
+  }
+  emblemShadow.position.set(-460, YB + 0.8, 0); emblemShadow.scale.set(420, 120, 1);
+  emblemShadow.material.opacity = 0.5 * smooth(prog(t, 1.6, 2.2));
+
+  // chrome sweep light
+  const swp = prog(t, TL.sweep[0], TL.sweep[1]);
+  sweepLight.position.set(lerp(-820, -120, easeInOutCubic(swp)), 90, 170);
+  sweepLight.intensity = 30 * bell(t, TL.sweep[0], TL.sweep[1]);
+
+  // wheels
+  wheels.forEach((w, i) => {
+    const vis = t >= w.tt[0];
+    w.root.visible = vis;
+    const pose = wheelPose(w, t);
+    w.root.position.set(pose.x, w.home[1], pose.z);
+    w.root.rotation.set(0, pose.yaw, 0);
+    w.spin.rotation.z = w.angle(t);
+    w.shadow.visible = vis; w.shadow.position.set(pose.x, YB + 0.8, pose.z); w.shadow.scale.set(240, 120, 1); w.shadow.rotation.z = pose.yaw;
+    // red hub trail while travelling
+    const tr = trails[i];
+    if (vis && t < w.tt[1] + 0.3) {
+      const f = 1 - smooth(prog(t, w.tt[1] - 0.1, w.tt[1] + 0.3));
+      const pts = [];
+      for (let j = 0; j < 40; j++) { const tj = lerp(Math.max(w.tt[0], t - 0.28), t, j / 39); const pj = wheelPose(w, tj); pts.push(new THREE.Vector3(pj.x, w.home[1], pj.z + 4)); }
+      setRibbon(tr, pts, s => lerp(4, 30, s), s => [3 * s * s * f, 0.12 * s * s * f, 0.06 * s * s * f], camS);
+    } else tr.visible = false;
+  });
+
+  // ring flash when the wheels lock in as O's
+  rings.forEach((r, i) => {
+    const a = prog(t, r.t0, r.t0 + 0.45), on = t >= r.t0 && a < 1;
+    r.sprite.position.set(wheels[i].home[0], wheels[i].home[1], 45);
+    r.sprite.scale.setScalar(lerp(230, 430, easeOutCubic(a)));
+    r.sprite.material.opacity = on ? (1 - a) * (1 - a) : 0;
+  });
+
+  // letters
+  for (const [k, sl] of Object.entries(slides)) {
+    const vis = t >= sl.tt[0];
+    sl.m.visible = vis;
+    const pz = slidePose(sl, t);
+    sl.m.position.set(pz.x, YB, pz.z);
+    sl.m.rotation.set(pz.tilt, pz.yaw, 0);
+    sl.shadow.visible = vis; sl.shadow.position.set(pz.x, YB + 0.8, pz.z); sl.shadow.scale.set(260, 110, 1);
+    const tr = trails[k === 'R' ? 2 : 3];
+    if (vis && t < sl.tt[1] + 0.2) {
+      const f = 1 - smooth(prog(t, sl.tt[1] - 0.05, sl.tt[1] + 0.2));
+      const pts = [];
+      for (let j = 0; j < 30; j++) { const tj = lerp(Math.max(sl.tt[0], t - 0.12), t, j / 29); const pj = slidePose(sl, tj); pts.push(new THREE.Vector3(pj.x, YB + 60, pj.z)); }
+      setRibbon(tr, pts, s => lerp(6, 70, s), s => [2.2 * s * s * f, 0.1 * s * s * f, 0.05 * s * s * f], camS);
+    } else tr.visible = false;
+  }
+
+  // smoke puffs
+  for (const p of puffs) {
+    const age = t - p.ts, on = age >= 0 && age < p.life;
+    p.sprite.visible = on;
+    if (!on) continue;
+    const k = 2.2, drag = (1 - Math.exp(-k * age)) / k;
+    p.sprite.position.set(p.p0.x + p.v.x * drag, p.p0.y + p.v.y * drag + 35 * age * age, p.p0.z + p.v.z * drag);
+    p.sprite.scale.setScalar(lerp(p.s0, p.s1, 1 - Math.exp(-age * 2.4)));
+    p.sprite.material.rotation = p.rot + p.vr * age;
+    p.sprite.material.opacity = p.a * smooth(clamp(age / 0.12)) * Math.pow(1 - age / p.life, 1.4);
+  }
+
+  // sparks
+  {
+    const pos = spGeo.attributes.position.array, col = spGeo.attributes.color.array;
+    let n = 0;
+    for (const s of sparks) {
+      const age = t - s.t0;
+      if (age < 0 || age > s.life) continue;
+      sparkPos(s, age, _p); sparkPos(s, Math.max(0, age - 0.028), _q);
+      _t.subVectors(_p, _q); if (_t.lengthSq() < 1e-6) _t.set(1, 0, 0);
+      _t.normalize(); _v.subVectors(camS, _p).normalize(); _s.crossVectors(_t, _v).normalize().multiplyScalar(1.6);
+      const f = Math.pow(1 - age / s.life, 1.2) * s.hot, o = n * 12;
+      const verts = [[_q, -1], [_q, 1], [_p, -1], [_p, 1]];
+      verts.forEach(([v, sg], j) => { pos[o + j * 3] = v.x + _s.x * sg; pos[o + j * 3 + 1] = v.y + _s.y * sg; pos[o + j * 3 + 2] = v.z + _s.z * sg; });
+      for (let j = 0; j < 4; j++) { const head = j >= 2 ? 1 : 0.35; col[o + j * 3] = 7 * f * head; col[o + j * 3 + 1] = 2.6 * f * head; col[o + j * 3 + 2] = 0.6 * f * head; }
+      n++;
+    }
+    spGeo.setDrawRange(0, n * 6);
+    spGeo.attributes.position.needsUpdate = true; spGeo.attributes.color.needsUpdate = true;
+  }
+
+  // glints
+  for (const g of glints) {
+    const a = prog(t, g.t0, g.t0 + g.dur), on = t >= g.t0 && a < 1;
+    g.sprite.material.opacity = on ? Math.sin(Math.PI * a) : 0;
+    if (on) { g.sprite.position.copy(g.pos()); g.sprite.scale.setScalar(g.size * (0.6 + 0.4 * Math.sin(Math.PI * a))); g.sprite.material.rotation = a * 0.6; }
+  }
+
+  syncMirror();
+}
+
+/* ---------------- 2D compositing ---------------- */
+const mk2d = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+const fc = mk2d(), fctx = fc.getContext('2d');
+const acc = mk2d(), actx = acc.getContext('2d');
+acc.id = 'out'; document.body.appendChild(acc);
+
+// flat final logo (vector) — exactly the lockup geometry
+const poly = part => { const p = new Path2D(); for (const c of [part.outer, ...part.holes]) { c.forEach(([x, y], i) => i ? p.lineTo(x, y) : p.moveTo(x, y)); p.closePath(); } return p; };
+const glyphPath = L => { const p = new Path2D(); for (const c of L.cmds) { if (c.type === 'M') p.moveTo(c.x, c.y); else if (c.type === 'L') p.lineTo(c.x, c.y); else if (c.type === 'Q') p.quadraticCurveTo(c.x1, c.y1, c.x, c.y); else if (c.type === 'C') p.bezierCurveTo(c.x1, c.y1, c.x2, c.y2, c.x, c.y); else if (c.type === 'Z') p.closePath(); } return p; };
+let finalCanvas = null;
+function buildFinal() {
+  const c = mk2d(), g = c.getContext('2d');
+  g.fillStyle = G.colors.yellow; g.fillRect(0, 0, W, H);
+  g.fillStyle = G.colors.black;
+  for (const k of ['stem', 'bowl', 'leg']) g.fill(poly(G.emblem[k]), 'evenodd');
+  const sw = poly(G.emblem.swoosh);
+  g.lineJoin = 'round'; g.lineWidth = 14; g.strokeStyle = G.colors.yellow; g.stroke(sw);
+  g.fillStyle = G.colors.red; g.fill(sw);
+  for (const k of ['R', 'D']) g.fill(glyphPath(G.letters[k]));
+  // tyres: render the real 3D wheels straight-on (orthographic), static, on transparent
+  update(TL.hold);
+  const hidden = [];
+  stage.children.forEach(o => { if (!wheels.some(w => w.root === o) && o.visible && !o.isLight) { hidden.push(o); o.visible = false; } });
+  const bg = scene.background; scene.background = null;
+  const envSave = Object.fromEntries(Object.entries(M).map(([k, m]) => [k, m.envMapIntensity]));
+  for (const [k, m] of Object.entries(M)) m.envMapIntensity = ENV_BASE[k] * 1.05;
+  const ints = [key.intensity, rim.intensity, front.intensity]; key.intensity = 3.4; rim.intensity = 3; front.intensity = 4;
+  renderer.setClearColor(0x000000, 0);
+  renderer.render(scene, ortho);
+  g.drawImage(renderer.domElement, 0, 0);
+  renderer.setClearColor(0x000000, 1);
+  [key.intensity, rim.intensity, front.intensity] = ints;
+  for (const [k, m] of Object.entries(M)) m.envMapIntensity = envSave[k];
+  scene.background = bg; hidden.forEach(o => { o.visible = true; });
+  finalCanvas = c;
+}
+
+const grain = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); const img = g.createImageData(512, 512); const r = mulberry32(99);
+  for (let i = 0; i < img.data.length; i += 4) { const v = 128 + (r() - 0.5) * 120; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; } g.putImageData(img, 0, 0); return c; })();
+
+function wipeEdgeX(t) { return lerp(-420, W + 420, easeInOutCubic(prog(t, TL.wipe[0], TL.wipe[1]))); }
+const SLANT = 0.32;
+
+function compose(t) {
+  t = clamp(t, 0, DURATION);
+  const wp = prog(t, TL.wipe[0], TL.wipe[1]);
+  if (!finalCanvas) buildFinal();
+  if (t >= TL.wipe[1]) {
+    fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+    fctx.drawImage(finalCanvas, 0, 0);
+  } else {
+    update(t);
+    composer.render();
+    fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+    fctx.drawImage(renderer.domElement, 0, 0);
+    // vignette + grain on the 3D part
+    const vg = fctx.createRadialGradient(W / 2, H / 2, 380, W / 2, H / 2, 1180);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.72)');
+    fctx.fillStyle = vg; fctx.fillRect(0, 0, W, H);
+    fctx.globalCompositeOperation = 'overlay'; fctx.globalAlpha = 0.07;
+    const gx = Math.floor(hash(Math.floor(t * FPS * 4), 1, 5) * 512), gy = Math.floor(hash(Math.floor(t * FPS * 4), 2, 5) * 512);
+    for (let y = -gy; y < H; y += 512) for (let x = -gx; x < W; x += 512) fctx.drawImage(grain, x, y);
+    fctx.globalCompositeOperation = 'source-over'; fctx.globalAlpha = 1;
+    // impact flashes
+    let flash = 0;
+    for (const [ti, amp] of impacts) if (t >= ti) flash += amp * 0.012 * Math.exp(-(t - ti) * 22);
+    if (flash > 0.002) { fctx.globalCompositeOperation = 'lighter'; fctx.fillStyle = `rgba(255,235,225,${Math.min(0.35, flash)})`; fctx.fillRect(0, 0, W, H); fctx.globalCompositeOperation = 'source-over'; }
+    // fade up from black
+    const fi = 1 - smooth(prog(t, TL.fadeIn[0], TL.fadeIn[1]));
+    if (fi > 0) { fctx.fillStyle = `rgba(0,0,0,${fi})`; fctx.fillRect(0, 0, W, H); }
+    // yellow reveal wipe
+    if (wp > 0) {
+      const xe = wipeEdgeX(t);
+      fctx.save();
+      fctx.beginPath();
+      fctx.moveTo(-50, -50); fctx.lineTo(xe + (H / 2 + 50) * SLANT, -50); fctx.lineTo(xe - (H / 2 + 50) * SLANT, H + 50); fctx.lineTo(-50, H + 50); fctx.closePath();
+      fctx.clip();
+      fctx.drawImage(finalCanvas, 0, 0);
+      fctx.restore();
+    }
+  }
+  // glowing red light bar on the wipe edge (and its afterglow)
+  const glowA = t < TL.wipe[1] ? smooth(prog(t, TL.wipe[0], TL.wipe[0] + 0.08)) : 1 - smooth(prog(t, TL.wipe[1], TL.hold - 0.02));
+  if (glowA > 0 && t >= TL.wipe[0]) {
+    const xe = t < TL.wipe[1] ? wipeEdgeX(t) : W + 420;
+    fctx.save(); fctx.globalCompositeOperation = 'lighter';
+    const line = (w, style) => { fctx.lineWidth = w; fctx.strokeStyle = style; fctx.beginPath(); fctx.moveTo(xe + (H / 2 + 60) * SLANT, -60); fctx.lineTo(xe - (H / 2 + 60) * SLANT, H + 60); fctx.stroke(); };
+    line(260, `rgba(255,20,10,${0.10 * glowA})`); line(110, `rgba(255,30,15,${0.22 * glowA})`);
+    line(36, `rgba(255,70,40,${0.55 * glowA})`); line(9, `rgba(255,235,220,${0.95 * glowA})`);
+    for (let i = 0; i < 6; i++) {           // speed lines trailing the bar
+      const yy = 140 + i * 150 + 40 * Math.sin(i * 2.3), off = 120 + 90 * ((i * 37) % 5);
+      const x0 = xe - (yy - H / 2) * SLANT;
+      fctx.lineWidth = 3; fctx.strokeStyle = `rgba(255,40,20,${0.35 * glowA})`;
+      fctx.beginPath(); fctx.moveTo(x0 - 30, yy); fctx.lineTo(x0 - 30 - off * 3, yy); fctx.stroke();
+    }
+    fctx.restore();
+  }
+}
+
+function samplesAt(t) {
+  if (t >= TL.wipe[1]) return t < TL.hold ? 2 : 1;
+  if (inR(t, TL.streak[0] - 0.05, TL.streak[1] + 0.2)) return 8;
+  if (inR(t, TL.parts.stem[0], TL.parts.leg[1] + 0.05)) return 7;
+  if (inR(t, TL.wheelA[0], TL.spinStop + 0.05)) return 8;
+  if (inR(t, TL.R[0], TL.D[1] + 0.12)) return 7;
+  if (inR(t, TL.wipe[0], TL.wipe[1])) return 6;
+  return 3;
+}
+const SHUTTER = 0.5;   // fraction of a frame the virtual shutter is open
+let holdCache = null;
+function renderAt(t, K) {
+  if (t >= TL.hold && holdCache) { actx.globalAlpha = 1; actx.drawImage(holdCache, 0, 0); return; }
+  for (let i = 0; i < K; i++) {
+    const ti = K > 1 ? t + ((i + 0.5) / K - 0.5) * SHUTTER / FPS : t;
+    compose(ti);
+    actx.globalCompositeOperation = 'source-over';
+    actx.globalAlpha = 1 / (i + 1);
+    actx.drawImage(fc, 0, 0);
+  }
+  actx.globalAlpha = 1;
+  if (t >= TL.hold && !holdCache) { holdCache = mk2d(); holdCache.getContext('2d').drawImage(acc, 0, 0); }
+}
+
+window.renderFrame = f => { const t = f / FPS; renderAt(t, samplesAt(t)); return acc.toDataURL('image/png'); };
+window.renderStill = (t, K = 1) => { renderAt(t, K); return acc.toDataURL('image/png'); };
+window.DURATION = DURATION; window.FPS = FPS;
+window.__info = { uS0, uS1, sparks: sparks.length, puffs: puffs.length };
+window.__dbg = { THREE, M, emblem, letters, wheels, scene, stage, renderer, composer, update, camera, swoosh, floor, wall, haze };
+window.__done = true;
+window.__ready = true;
+if (!window.__RECORDING__ && !location.search.includes('still')) {
+  const start = performance.now();
+  const loop = () => { const t = ((performance.now() - start) / 1000) % (DURATION + 1); renderAt(Math.min(t, DURATION), 1); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
