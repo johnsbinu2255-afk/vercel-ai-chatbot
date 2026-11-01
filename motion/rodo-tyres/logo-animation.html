@@ -1,0 +1,455 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Rodo Tyres Logo Animation</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,900;1,900&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: #070405; }
+  canvas { display: block; max-width: 100vw; max-height: 100vh; margin: 0 auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/* =========================================================
+   RODO TYRES — logo sting (5 s)
+   R pops in red → a tyre rolls in and stops to become the first O
+   → D pops in → a second tyre rolls in to become the last O
+   → TYRES appears underneath → shine.
+   ========================================================= */
+const PARAMS = new URLSearchParams(location.search);
+/* ?format=vertical → 1080×1920 for Reels / Stories / WhatsApp status (default: 1920×1080) */
+const VERTICAL = PARAMS.get('format') === 'vertical';
+const W = VERTICAL ? 1080 : 1920, H = VERTICAL ? 1920 : 1080;
+const DURATION = 5.0;
+const RED = '#ff1a1a', RED_DEEP = '#c00000', WHITE = '#f6f6f6', YELLOW = '#ffc400';
+/* Colour themes: open with ?theme=yellow for the black / red / yellow version */
+const THEMES = {
+  red: {     // black / red / white (default)
+    R: RED, D: WHITE, sub: RED, tireText: WHITE, swoosh: RED, pin: RED_DEEP, rimLip: RED,
+    bladeA: '#ffffff', bladeB: '#9a9ca3', fin: RED, stripe: RED,
+    glowR: 'rgba(255,20,20,0.9)', glowD: 'rgba(0,0,0,0.6)', glowSub: 'rgba(255,20,20,0.9)',
+    tireGlow: '255,20,20', bg1: '150,10,10', bg2: '70,4,6', roadEdge: '255,30,30', speed: '255,40,40',
+  },
+  yellow: {  // black / red / yellow
+    R: RED, D: YELLOW, sub: YELLOW, tireText: YELLOW, swoosh: RED, pin: YELLOW, rimLip: YELLOW,
+    bladeA: '#fff3a0', bladeB: '#e0a800', fin: RED, stripe: RED,
+    glowR: 'rgba(255,20,20,0.9)', glowD: 'rgba(255,196,0,0.75)', glowSub: 'rgba(255,170,0,0.85)',
+    tireGlow: '255,150,0', bg1: '120,12,6', bg2: '45,8,4', roadEdge: '255,190,0', speed: '255,196,0',
+  },
+};
+const C = THEMES[PARAMS.get('theme')] || THEMES.red;
+const FONT_FAMILY = 'Montserrat, "DejaVu Sans", sans-serif';
+let FONT_PX = 330;                  // shrunk in layout() when R-O-D-O is wider than the frame
+let LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
+const SUB_PX = VERTICAL ? 100 : 112;
+const SUB_FONT = `900 ${SUB_PX}px ${FONT_FAMILY}`;
+const SUB_SPACING = VERTICAL ? 30 : 34;
+const SIDE_MARGIN = 80;
+const ROAD_Y = VERTICAL ? 930 : 650; // road surface: letters + tyres stand on it
+const TIRE_TEXT = 'RODO TYRES';
+
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const ctx = cv.getContext('2d');
+
+const clamp = (v, a=0, b=1) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2;
+const easeOutBack = (t, s = 1.9) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
+function rng(seed) { return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+
+/* ---------- layout ---------- */
+let TIRE_R = 115, slots = [], sub = [];
+function layout() {
+  const word = ['R', 'O', 'D', 'O'];
+  const gap = 16;
+  let widths, total;
+  const measure = () => {
+    ctx.font = LETTER_FONT;
+    const capH = ctx.measureText('R').actualBoundingBoxAscent;
+    TIRE_R = capH / 2 * 1.04;                  // tyre is the same height as the letters
+    widths = word.map(ch => ch === 'O' ? TIRE_R * 2 : ctx.measureText(ch).width);
+    total = widths.reduce((a, b) => a + b, 0) + gap * 3;
+  };
+  measure();
+  const maxW = W - 2 * SIDE_MARGIN;
+  if (total > maxW) {                          // e.g. vertical format: scale lettering to fit
+    FONT_PX = Math.floor(FONT_PX * (maxW - gap * 3) / (total - gap * 3));
+    LETTER_FONT = `900 ${FONT_PX}px ${FONT_FAMILY}`;
+    measure();
+  }
+  let x = (W - total) / 2;
+  slots = word.map((ch, i) => { const s = { ch, x: x + widths[i] / 2 }; x += widths[i] + gap; return s; });
+
+  ctx.font = SUB_FONT;
+  const letters = [...'TYRES'];
+  const sw = letters.map(c => ctx.measureText(c).width);
+  const stotal = sw.reduce((a, b) => a + b, 0) + SUB_SPACING * (letters.length - 1);
+  let sx = (W - stotal) / 2;
+  sub = letters.map((c, i) => { const s = { ch: c, x: sx + sw[i] / 2 }; sx += sw[i] + SUB_SPACING; return s; });
+}
+
+/* ---------- timeline ---------- */
+const T = {
+  R: 0.15,                          // R pops
+  tire1: [0.45, 1.35],              // first tyre rolls in → O
+  D: 1.45,                          // D pops
+  tire2: [1.70, 2.75],              // second tyre rolls in → O
+  sub: 2.85,                        // TYRES letters start
+  stripe: 3.35,
+  shine: 3.95,
+};
+
+// tyre x position: rolls in from off-screen left, stops with a slight overshoot (rock back)
+function tireX(i, t) {
+  const [t0, t1] = i === 0 ? T.tire1 : T.tire2;
+  const target = slots[i === 0 ? 1 : 3].x;
+  const start = -TIRE_R - 80;
+  const p = clamp((t - t0) / (t1 - t0));
+  // decelerating roll with a small settle
+  const e = p < 1 ? easeOutBack(p, 0.55) : 1;
+  return lerp(start, target, e);
+}
+const tireVisible = (i, t) => t >= (i === 0 ? T.tire1[0] : T.tire2[0]);
+const tireArrival = i => (i === 0 ? T.tire1[1] : T.tire2[1]) - 0.25;
+
+/* ---------- background ---------- */
+const dust = (() => { const r = rng(7); return Array.from({ length: 70 }, () => ({
+  x: r() * W, y: r() * H, s: 1 + r() * 3.5, a: 0.15 + r() * 0.5, v: 8 + r() * 25, blur: r() < 0.25 })); })();
+
+function drawBackground(t) {
+  ctx.fillStyle = '#070405';
+  ctx.fillRect(0, 0, W, H);
+  const pulse = 0.85 + 0.15 * clamp((t - 2.6) / 1.0);
+  const g = ctx.createRadialGradient(W/2, ROAD_Y - 120, 40, W/2, ROAD_Y - 120, 1050);
+  g.addColorStop(0, `rgba(${C.bg1},${0.75 * pulse})`);
+  g.addColorStop(0.45, `rgba(${C.bg2},${0.6 * pulse})`);
+  g.addColorStop(1, 'rgba(7,4,5,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  for (const d of dust) {
+    const y = (d.y - d.v * t + H) % H;
+    ctx.save();
+    ctx.globalAlpha = d.a;
+    if (d.blur) { ctx.shadowColor = 'white'; ctx.shadowBlur = 12; }
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(d.x, y, d.s, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawRoad(t) {
+  const g = ctx.createLinearGradient(0, ROAD_Y, 0, ROAD_Y + 430);
+  g.addColorStop(0, '#1d1a1c');
+  g.addColorStop(1, '#0a0809');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, ROAD_Y, W, H - ROAD_Y);
+  const eg = ctx.createLinearGradient(0, ROAD_Y, 0, ROAD_Y + 70);
+  eg.addColorStop(0, `rgba(${C.roadEdge},0.22)`);
+  eg.addColorStop(1, `rgba(${C.roadEdge},0)`);
+  ctx.fillStyle = eg;
+  ctx.fillRect(0, ROAD_Y, W, 70);
+  ctx.fillStyle = '#3b2a2d';
+  ctx.fillRect(0, ROAD_Y, W, 5);
+  // red underline stripe
+  const sp = clamp((t - T.stripe) / 0.6);
+  if (sp > 0) {
+    const sw = (slots[3].x - slots[0].x + TIRE_R * 2.4) * easeInOut(sp);
+    ctx.save();
+    ctx.shadowColor = C.stripe; ctx.shadowBlur = 25;
+    ctx.fillStyle = C.stripe;
+    ctx.fillRect(W/2 - sw/2, ROAD_Y + 4, sw, 8);
+    ctx.restore();
+  }
+}
+
+/* ---------- effects ---------- */
+function drawDust(x, t0, t) {
+  const p = clamp((t - t0) / 0.6);
+  if (t < t0 || p >= 1) return;
+  ctx.save();
+  ctx.globalAlpha = 0.5 * (1 - p);
+  ctx.fillStyle = '#a59a9c';
+  for (let k = 0; k < 7; k++) {
+    const a = Math.PI + (k - 3) * 0.28;
+    const d = 40 + 120 * easeInOut(p);
+    ctx.beginPath();
+    ctx.arc(x - TIRE_R * 0.6 + Math.cos(a) * d * 0.6, ROAD_Y - 6 + Math.sin(a) * d * 0.18 - 10 * p,
+            9 + 18 * p, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawSpeedLines(i, t) {
+  if (!tireVisible(i, t)) return;
+  const x = tireX(i, t);
+  const v = (x - tireX(i, t - 1/60)) * 60;
+  const a = clamp(v / 2600);
+  if (a < 0.08) return;
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 5;
+  const cy = ROAD_Y - TIRE_R;
+  for (let k = -2; k <= 2; k++) {
+    ctx.strokeStyle = k % 2 ? `rgba(${C.speed},${0.55 * a})` : `rgba(255,255,255,${0.35 * a})`;
+    const len = 140 + 260 * a + (k % 2) * 60;
+    const yy = cy + k * TIRE_R * 0.38;
+    const x0 = x - TIRE_R - 25 - Math.abs(k) * 18;
+    ctx.beginPath(); ctx.moveTo(x0, yy); ctx.lineTo(x0 - len, yy); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* text bent around a circle, centred on angle `ang` (0 = top), reading clockwise */
+function arcText(str, radius, ang, font, fill, spacing = 0) {
+  ctx.save();
+  ctx.font = font;
+  ctx.fillStyle = fill;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const chars = [...str];
+  const ws = chars.map(c => ctx.measureText(c).width + spacing);
+  const total = ws.reduce((a, b) => a + b, 0) - spacing;
+  let a = ang - total / radius / 2;
+  chars.forEach((c, i) => {
+    ctx.save();
+    ctx.rotate(a + (ws[i] - spacing) / 2 / radius);
+    ctx.translate(0, -radius);
+    ctx.fillText(c, 0, 0);
+    ctx.restore();
+    a += ws[i] / radius;
+  });
+  ctx.restore();
+}
+
+/* ---------- the tyre (doubles as the letter O) ---------- */
+function drawTire(cx, angle, glow) {
+  const R = TIRE_R, cy = ROAD_Y - R;
+  // ground shadow
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.beginPath(); ctx.ellipse(cx, ROAD_Y + 5, R * 0.95, 12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  // red back-glow (flares when the tyre lands in place)
+  ctx.save();
+  ctx.shadowColor = `rgba(${C.tireGlow},${0.6 + 0.4 * glow})`;
+  ctx.shadowBlur = 35 + 45 * glow;
+  ctx.fillStyle = '#0d0d0f';
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.rotate(angle);
+
+  // tread blocks
+  const blocks = 36;
+  for (let i = 0; i < blocks; i++) {
+    ctx.save();
+    ctx.rotate(i * Math.PI * 2 / blocks);
+    ctx.fillStyle = i % 2 ? '#1b1b1e' : '#26262a';
+    ctx.fillRect(-6, -R + 2, 12, 12);
+    ctx.restore();
+  }
+  // sidewall
+  const sg = ctx.createRadialGradient(0, 0, R * 0.55, 0, 0, R * 0.9);
+  sg.addColorStop(0, '#1a1a1d'); sg.addColorStop(1, '#0c0c0e');
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.88, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = C.pin; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.875, 0, Math.PI * 2); ctx.stroke();
+
+  // "RODO TYRES" twice around the sidewall, red swooshes between
+  const tr = R * 0.745;
+  const fpx = Math.round(R * 0.165);
+  for (let k = 0; k < 2; k++) {
+    const a0 = k * Math.PI;
+    ctx.save();
+    ctx.rotate(a0);
+    arcText(TIRE_TEXT, tr, 0, `italic 900 ${fpx}px ${FONT_FAMILY}`, C.tireText, 1);
+    ctx.restore();
+    // swoosh centred between the two labels
+    const mid = a0 + Math.PI / 2 - Math.PI / 2;  // canvas arc angle for "right side" of this half
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = C.swoosh; ctx.lineWidth = Math.max(4, R * 0.05);
+    ctx.beginPath(); ctx.arc(0, 0, tr, mid - 0.3, mid + 0.3); ctx.stroke();
+    ctx.restore();
+  }
+
+  // rim lip
+  const rr = R * 0.6;
+  ctx.save();
+  ctx.shadowColor = C.rimLip; ctx.shadowBlur = 16;
+  ctx.strokeStyle = C.rimLip; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  // rim face
+  const rg = ctx.createRadialGradient(-rr * 0.3, -rr * 0.3, 4, 0, 0, rr);
+  rg.addColorStop(0, '#2a2a2f'); rg.addColorStop(1, '#070708');
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.arc(0, 0, rr - 2, 0, Math.PI * 2); ctx.fill();
+  // spokes: silver blades + red fins
+  for (let i = 0; i < 10; i++) {
+    ctx.save();
+    ctx.rotate(i * Math.PI / 5);
+    if (i % 2 === 0) {
+      const s = ctx.createLinearGradient(0, -rr, 0, 0);
+      s.addColorStop(0, C.bladeA); s.addColorStop(1, C.bladeB);
+      ctx.fillStyle = s;
+      ctx.beginPath();
+      ctx.moveTo(-4, -rr * 0.2); ctx.lineTo(-10, -rr * 0.93); ctx.lineTo(4, -rr * 0.93); ctx.lineTo(5, -rr * 0.2);
+      ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = C.fin;
+      ctx.beginPath();
+      ctx.moveTo(0, -rr * 0.25); ctx.lineTo(-13, -rr * 0.88); ctx.lineTo(5, -rr * 0.78);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  // hub
+  const hg = ctx.createRadialGradient(-5, -5, 2, 0, 0, rr * 0.22);
+  hg.addColorStop(0, '#fff'); hg.addColorStop(0.6, '#a5a7ad'); hg.addColorStop(1, '#45464b');
+  ctx.fillStyle = hg;
+  ctx.beginPath(); ctx.arc(0, 0, rr * 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0b0b0d';
+  ctx.beginPath(); ctx.arc(0, 0, rr * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // fixed highlight
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const sh = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.45, 2, cx - R * 0.35, cy - R * 0.45, R * 0.6);
+  sh.addColorStop(0, 'rgba(255,255,255,0.16)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = sh;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawTires(t) {
+  // second tyre is drawn first so it passes *behind* the first one
+  for (const i of [1, 0]) {
+    if (!tireVisible(i, t)) continue;
+    const x = tireX(i, t);
+    const target = slots[i === 0 ? 1 : 3].x;
+    const angle = (x - target) / TIRE_R;            // rolls without slipping; label upright when parked
+    const land = tireArrival(i);
+    const glow = t > land ? Math.max(0, 1 - (t - land) / 0.6) : 0;
+    drawTire(x, angle, glow);
+  }
+}
+
+/* ---------- letters ---------- */
+function drawLetter(ch, x, baseline, t0, t, font, fill, glowCol) {
+  if (t < t0) return;
+  const p = clamp((t - t0) / 0.38);
+  const sc = easeOutBack(p);
+  ctx.save();
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.translate(x, baseline);
+  ctx.scale(sc, sc);
+  ctx.globalAlpha = clamp(p * 3);
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 14;
+  ctx.strokeStyle = '#070405';
+  ctx.strokeText(ch, 0, 0);
+  ctx.shadowColor = glowCol; ctx.shadowBlur = 30;
+  ctx.fillStyle = fill;
+  ctx.fillText(ch, 0, 0);
+  ctx.shadowBlur = 0;
+  if (p < 1) { ctx.globalAlpha = (1 - p) * 0.8; ctx.fillStyle = '#fff'; ctx.fillText(ch, 0, 0); }
+  ctx.restore();
+}
+
+function drawWord(t) {
+  drawLetter('R', slots[0].x, ROAD_Y, T.R, t, LETTER_FONT, C.R, C.glowR);
+  drawLetter('D', slots[2].x, ROAD_Y, T.D, t, LETTER_FONT, C.D, C.glowD);
+}
+
+function drawSub(t) {
+  const base = ROAD_Y + 50 + SUB_PX * 0.72;
+  sub.forEach((s, i) => {
+    const t0 = T.sub + i * 0.08;
+    if (t < t0) return;
+    const p = clamp((t - t0) / 0.35);
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.translate(0, (1 - easeOutBack(p, 1.2)) * 40);
+    ctx.font = SUB_FONT;
+    ctx.textAlign = 'center';
+    ctx.shadowColor = C.glowSub; ctx.shadowBlur = 24;
+    ctx.fillStyle = C.sub;
+    ctx.fillText(s.ch, s.x, base);
+    ctx.restore();
+  });
+}
+
+function drawShine(t) {
+  const p = clamp((t - T.shine) / 0.7);
+  if (p <= 0 || p >= 1) return;
+  const x = lerp(slots[0].x - 300, slots[3].x + 300, easeInOut(p));
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createLinearGradient(x - 130, 0, x + 130, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.32)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.textAlign = 'center';
+  ctx.font = LETTER_FONT;
+  ctx.fillText('R', slots[0].x, ROAD_Y);
+  ctx.fillText('D', slots[2].x, ROAD_Y);
+  for (const i of [1, 3]) { ctx.beginPath(); ctx.arc(slots[i].x, ROAD_Y - TIRE_R, TIRE_R, 0, Math.PI * 2); ctx.fill(); }
+  ctx.font = SUB_FONT;
+  sub.forEach(s => ctx.fillText(s.ch, s.x, ROAD_Y + 50 + SUB_PX * 0.72));
+  ctx.restore();
+}
+
+function render(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  drawBackground(t);
+  drawRoad(t);
+  drawDust(slots[1].x, tireArrival(0), t);
+  drawDust(slots[3].x, tireArrival(1), t);
+  drawSpeedLines(1, t);
+  drawSpeedLines(0, t);
+  drawTires(t);
+  drawWord(t);          // R and D sit in front: tyres roll behind them
+  drawSub(t);
+  drawShine(t);
+  const fin = clamp(t / 0.15), fout = clamp((DURATION - t) / 0.12);
+  const a = 1 - Math.min(fin, fout);
+  if (a > 0) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, W, H); }
+}
+
+window.__ready = (async () => {
+  try {
+    await document.fonts.load(LETTER_FONT);
+    await document.fonts.load(`italic 900 30px ${FONT_FAMILY}`);
+  } catch (e) {}
+  await document.fonts.ready;
+  layout();
+  window.render = render;
+  window.DURATION = DURATION;
+  if (!window.__RECORDING__) {
+    const start = performance.now();
+    const loop = now => {
+      const t = ((now - start) / 1000) % (DURATION + 0.8);
+      render(Math.min(t, DURATION));
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+  return true;
+})();
+</script>
+</body>
+</html>
