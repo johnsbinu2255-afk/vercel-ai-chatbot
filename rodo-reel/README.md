@@ -13,6 +13,8 @@ Use the second one if both tyre shops really share 9747691237. Everything else i
 
 Both files are H.264 + AAC with BT.709 colour, and the sound is normalised to −14 LUFS for Instagram.
 
+A timed Malayalam voice-over script for both versions is in `voiceover-ml.md`.
+
 ## Scenes
 
 | Time | Scene | Transition out |
