@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import { PNG } from 'pngjs';
 import { PEAKS, RECIPES, TARGETS } from './sfx/recipes.mjs';
 import { SR, wav16, level } from './sfx/dsp.mjs';
@@ -117,9 +118,24 @@ for (const [name, recipe] of Object.entries(RECIPES)) {
   };
 }
 
+// ---------- voice-over ----------
+resetDir(path.join(PUBLIC, 'voiceover'));
+let voiceover = null;
+const vo = find('voiceover', 'voiceover', [...SFX_EXT, '.mp4', '.mov']);
+if (vo) {
+  const file = 'voiceover/voiceover.wav';
+  const r = spawnSync(remotionBin(ROOT), ['ffmpeg', '-v', 'error', '-y', '-i', vo, '-vn', '-ac', '2', '-ar', String(SR), '-c:a', 'pcm_s16le', path.join(PUBLIC, file)], {
+    shell: process.platform === 'win32',
+  });
+  if (r.status !== 0) throw new Error(`could not read ${vo}:\n${r.stderr}`);
+  const st = decodeAudio(remotionBin(ROOT), path.join(PUBLIC, file), SR);
+  voiceover = { file, source: path.relative(ROOT, vo), duration: +(st[0].length / SR).toFixed(3) };
+}
+
 fs.mkdirSync(path.join(ROOT, 'src', 'generated'), { recursive: true });
-fs.writeFileSync(path.join(ROOT, 'src', 'generated', 'assets.json'), JSON.stringify({ logos, sfx }, null, 2) + '\n');
+fs.writeFileSync(path.join(ROOT, 'src', 'generated', 'assets.json'), JSON.stringify({ logos, sfx, voiceover }, null, 2) + '\n');
 
 const provided = Object.entries(sfx).filter(([, v]) => v.source !== 'synthesised').map(([k]) => k);
 console.log(`logos: ${LOGOS.map((l) => `${l}${logos[l] ? '' : ' (text)'}`).join(', ')}`);
 console.log(`sound effects: ${Object.keys(sfx).length} (${provided.length ? 'yours: ' + provided.join(', ') : 'all synthesised'})`);
+console.log(`voice-over: ${voiceover ? voiceover.source : 'none'}`);

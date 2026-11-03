@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import { Background, Particles } from './components/Backdrop';
+import { Voiceover } from './components/Voiceover';
 import { Watermark } from './components/Watermark';
 import { SceneSlot } from './lib/scene-clock';
 import { C, s } from './lib/theme';
@@ -34,7 +35,7 @@ export const Reel: React.FC = () => (
     <SceneSlot name="5 Quick summary (0:23)" start={s(23)} duration={s(3)} zIndex={5}>
       <Scene5Summary />
     </SceneSlot>
-    <SceneSlot name="6 Finale (0:26)" start={s(26)} duration={s(7)} zIndex={6}>
+    <SceneSlot name="6 Finale (0:26)" start={s(26)} duration={s(9)} zIndex={6}>
       <Scene6Finale />
     </SceneSlot>
 
@@ -51,5 +52,7 @@ export const Reel: React.FC = () => (
     <AbsoluteFill style={{ zIndex: 20 }}>
       <Watermark />
     </AbsoluteFill>
+
+    <Voiceover />
   </AbsoluteFill>
 );

@@ -1,7 +1,8 @@
 export const FPS = 30;
 export const W = 1080;
 export const H = 1920;
-export const DURATION = 33 * FPS; // 990 frames
+// 35 s: the ending holds 2 s longer so the Malayalam voice-over can finish.
+export const DURATION = 35 * FPS; // 1050 frames
 
 export const C = {
   bg: '#0A0A0A',

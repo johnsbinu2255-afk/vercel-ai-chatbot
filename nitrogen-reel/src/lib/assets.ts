@@ -18,4 +18,5 @@ export type SfxInfo = {
 };
 
 export const logos = manifest.logos as Record<LogoName, LogoInfo | null>;
+export const voiceover = (manifest as { voiceover?: { file: string; duration: number } | null }).voiceover ?? null;
 export const sfx = manifest.sfx as Record<string, SfxInfo>;

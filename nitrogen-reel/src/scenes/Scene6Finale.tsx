@@ -29,8 +29,8 @@ const T = {
   seal: 131, // 0:30.37
   exit: 146,
   lines: [150, 159, 168], // 0:31, 31.3, 31.6
-  pulses: [177, 189],
-  end: s(6), // 0:32 final ding + bass tail, zoom-out
+  pulses: [177, 189, 222],
+  end: s(8), // 0:34 final ding + bass tail, zoom-out (after the voice-over ends)
 };
 const LOGO_W = 760;
 const TILE = { w: 290, h: 150, gap: 30 };
@@ -167,7 +167,7 @@ export const Scene6Finale: React.FC = () => {
   const sloganY = 1075 - 465 * up;
   const sloganScale = 1 - 0.22 * up;
   const rays = f < T.land ? 0 : tween(f, [T.land, T.land + 6], [0, 1]) * (1 - 0.6 * up);
-  const zoomOut = tween(f, [T.end, s(7)], [1, 0.92], ease.inOut);
+  const zoomOut = tween(f, [T.end, s(9)], [1, 0.92], ease.inOut);
   const spark = tween(f, [0, 8], [1, 0]);
   return (
     <AbsoluteFill style={{ transform: `scale(${zoomOut})` }}>
@@ -209,7 +209,7 @@ export const Scene6Finale: React.FC = () => {
       {T.lines.map((at) => (
         <Sfx key={at} name="pop" at={at} />
       ))}
-      <Sfx name="ding" at={T.end} align="start" />
+      <Sfx name="ding" at={T.end + 8} align="start" />
       <Sfx name="bass-tail" at={T.end} align="start" />
     </AbsoluteFill>
   );

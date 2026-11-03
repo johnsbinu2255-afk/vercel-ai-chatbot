@@ -13,7 +13,7 @@ import { renderMedia, selectComposition } from '@remotion/renderer';
 import { master } from './master.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'video', 'rodo-nitrogen-vs-normal-air.mp4');
+const OUT = path.join(ROOT, 'video', 'rodo-nitrogen-vs-normal-air-malayalam.mp4');
 const TMP = path.join(ROOT, 'out');
 const RAW = path.join(TMP, 'raw.mkv');
 const bin = path.join(ROOT, 'node_modules', '.bin', process.platform === 'win32' ? 'remotion.cmd' : 'remotion');
@@ -65,7 +65,7 @@ await renderMedia({
 });
 }
 
-// Sound: level to -16 LUFS with a look-ahead true-peak limiter (ceiling -3 dB) so nothing clips,
+// Sound: level to -14.5 LUFS with a look-ahead true-peak limiter (ceiling -3 dB) so nothing clips,
 // and fade the final bass tail to silence by the last frame.
 const audio = soundOnly || (masterOnly && fs.existsSync(RAW_SOUND) && fs.statSync(RAW_SOUND).mtimeMs > fs.statSync(RAW).mtimeMs) ? RAW_SOUND : RAW;
 const result = master({ bin, raw: RAW, audio, wav: path.join(TMP, 'master.wav'), out: OUT });

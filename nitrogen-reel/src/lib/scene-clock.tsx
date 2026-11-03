@@ -6,9 +6,12 @@ import { AbsoluteFill, Sequence, useCurrentFrame } from 'remotion';
 export const PRE = 24;
 
 const Offset = createContext(0);
+const Start = createContext(0);
 
 export const useSceneFrame = () => useCurrentFrame() - useContext(Offset);
 export const useSceneOffset = () => useContext(Offset);
+// Video frame of the scene's first frame.
+export const useSceneStart = () => useContext(Start);
 
 export const SceneSlot: React.FC<{
   name: string;
@@ -19,7 +22,9 @@ export const SceneSlot: React.FC<{
 }> = ({ name, start, duration, zIndex, children }) => (
   <Sequence name={name} from={start - PRE} durationInFrames={duration + PRE} style={{ zIndex }}>
     <Offset.Provider value={PRE}>
-      <Hidden>{children}</Hidden>
+      <Start.Provider value={start}>
+        <Hidden>{children}</Hidden>
+      </Start.Provider>
     </Offset.Provider>
   </Sequence>
 );

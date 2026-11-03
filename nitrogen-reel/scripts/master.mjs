@@ -135,7 +135,7 @@ function wavFloat([L, R]) {
 }
 
 // raw: render with video + PCM audio. out: final MP4.
-export function master({ bin, raw, audio = raw, wav, out, targetLufs = -16, ceilingDb = -3, fadeSec = 0.35 }) {
+export function master({ bin, raw, audio = raw, wav, out, targetLufs = -14.5, ceilingDb = -3, fadeSec = 0.35 }) {
   const src = decodeAudio(bin, audio, SR);
   const before = integratedLoudness(src);
   let gainDb = targetLufs - before;

@@ -1,8 +1,13 @@
 # RODO TYRES: Normal Air vs Nitrogen (Instagram Reel)
 
-A 33-second vertical motion graphics video (1080×1920, 30 fps, 990 frames), built with [Remotion](https://www.remotion.dev). It uses sound effects only, with no music and no voiceover.
+A vertical motion graphics video (1080×1920, 30 fps), built with [Remotion](https://www.remotion.dev), with sound effects and no music.
 
-**The video:** `video/rodo-nitrogen-vs-normal-air.mp4` (H.264 + AAC, BT.709 colour). The sound is levelled to −16 LUFS, with peaks below −1.8 dBFS, so nothing clips.
+**The videos:**
+
+- `video/rodo-nitrogen-vs-normal-air-malayalam.mp4`: 35 s (1050 frames), with the Malayalam voice-over. The ending holds 2 s longer so the last line can finish, and the sound effects dip about 6 dB while the voice speaks. The sound is levelled to −14.5 LUFS with peaks below −1.9 dBFS.
+- `video/rodo-nitrogen-vs-normal-air.mp4`: the original 33 s version (990 frames) with sound effects only.
+
+Both are H.264 + AAC with BT.709 colour.
 
 ## Scenes
 
@@ -15,7 +20,7 @@ Each scene is its own component in `src/scenes/`, and it holds its own pictures 
 | 0:06–0:14 | `Scene3Pressure.tsx` | "1 Holds Pressure Longer". Shows the tyre-wall close-up, gauges (32→26 vs 32→31 PSI), sag, warning, three pump refills, calendar and tick, then the key message. |
 | 0:14–0:23 | `Scene4Heat.tsx` | "2 Less Heat, Longer Tyre Life". Shows the hot road, thermometers, heat waves, tread wear, the tyre life bars and "LAST LONGER". |
 | 0:23–0:26 | `Scene5Summary.tsx` | Comparison table row by row, then everything shrinks to a point of light. |
-| 0:26–0:33 | `Scene6Finale.tsx` | Logo lands with a shockwave, the slogan types in, the dealers grid and seal appear, then contact details. |
+| 0:26–0:35 | `Scene6Finale.tsx` | Logo lands with a shockwave, the slogan types in, the dealers grid and seal appear, then contact details. |
 
 Transitions between scenes are in `src/transitions/`: the "1" and "2" zoom-throughs and the white flash. The slice and the shrink-to-light happen inside scenes 1 and 5.
 
@@ -42,6 +47,10 @@ The watermark (0:00–0:30, bottom right, 400 px from the bottom) is in `src/com
 | `camera-flash`, `buzz`, `ding`, `reverse-whoosh` | Flash, table X and ticks, shrink to light |
 | `boom`, `type-click`, `shimmer`, `ribbon`, `hit`, `stamp`, `bass-tail` | Finale |
 
+## Voice-over
+
+The recording is `assets/voiceover/voiceover.m4a`. `src/voiceover.ts` places each line on its scene: `from`/`to` are seconds in the recording, and `at` is where the line starts in the video. It also sets the voice level and how far the effects dip. To use a new take, replace the file (`.mp3`, `.wav`, `.m4a` or `.mp4`) and update the `from`/`to` times to the pauses in that recording. If there is no file in `assets/voiceover/`, the video has sound effects only.
+
 ## Commands
 
 You need Node 18+. Run this once:
@@ -55,14 +64,14 @@ Then:
 
 ```bash
 npm run studio          # preview and scrub the video in Remotion Studio
-npm run render          # full render -> video/rodo-nitrogen-vs-normal-air.mp4 (about 6 minutes on 4 cores)
+npm run render          # full render -> video/rodo-nitrogen-vs-normal-air-malayalam.mp4 (about 6.5 minutes on 4 cores)
 npm run render:sound    # after changing only sounds: re-mix the audio (about 2 minutes) and keep the last picture
 npm run stills -- 2.0 12.5 30.4   # PNG frames at those seconds, in out/stills/
 ```
 
 Remotion downloads its own headless Chrome the first time. To use a Chrome you already have, set `REMOTION_BROWSER=/path/to/chrome`.
 
-How the sound is finished (`scripts/master.mjs`): Remotion mixes the scene sounds without loss. The mix is then measured to the BS.1770 loudness standard and levelled to −16 LUFS. A look-ahead limiter catches peaks above −3 dB, including the peaks between samples that AAC encoding would otherwise push over. The last 0.35 s fades to silence.
+How the sound is finished (`scripts/master.mjs`): Remotion mixes the scene sounds without loss. The mix is then measured to the BS.1770 loudness standard and levelled to −14.5 LUFS. A look-ahead limiter catches peaks above −3 dB, including the peaks between samples that AAC encoding would otherwise push over. The last 0.35 s fades to silence.
 
 ## Licences
 
