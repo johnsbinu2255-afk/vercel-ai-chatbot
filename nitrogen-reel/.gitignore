@@ -1,0 +1,5 @@
+# Made by scripts/prepare-assets.mjs
+public/sfx/
+public/logos/
+src/generated/
+out/

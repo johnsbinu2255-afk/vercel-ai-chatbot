@@ -1,0 +1,26 @@
+{
+  "name": "rodo-nitrogen-reel",
+  "private": true,
+  "description": "RODO TYRES Normal Air vs Nitrogen Instagram Reel, built with Remotion",
+  "scripts": {
+    "prepare-assets": "node scripts/prepare-assets.mjs",
+    "studio": "node scripts/prepare-assets.mjs && remotion studio",
+    "render": "node scripts/render.mjs",
+    "render:sound": "node scripts/render.mjs --sound-only",
+    "stills": "node scripts/prepare-assets.mjs && node scripts/stills.mjs"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.540",
+    "@remotion/fonts": "4.0.540",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.540"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "pngjs": "7.0.0",
+    "typescript": "5.6.3",
+    "@remotion/bundler": "4.0.540",
+    "@remotion/renderer": "4.0.540"
+  }
+}
