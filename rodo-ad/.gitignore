@@ -1,0 +1,5 @@
+node_modules/
+frames/
+# rebuilt in seconds by scripts/build_audio.py
+audio/stems_*/
+audio/mix_*.wav

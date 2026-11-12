@@ -1,0 +1,26 @@
+{
+  "fps": 30,
+  "duration": 40.0,
+  "scenes": [
+    { "id": "s1", "start": 0.0,  "end": 5.0,  "type": "live",   "title": "Cinematic car introduction" },
+    { "id": "s2", "start": 5.0,  "end": 10.0, "type": "live",   "title": "Camera enters the car" },
+    { "id": "s3", "start": 10.0, "end": 15.0, "type": "live",   "title": "Driver introduction" },
+    { "id": "s4", "start": 15.0, "end": 24.0, "type": "motion", "title": "Component speaker explanation" },
+    { "id": "s5", "start": 24.0, "end": 31.0, "type": "motion", "title": "Coaxial speaker explanation" },
+    { "id": "s6", "start": 31.0, "end": 36.0, "type": "motion", "title": "Side-by-side comparison" },
+    { "id": "s7a", "start": 36.0, "end": 37.4, "type": "live",  "title": "Back in the car" },
+    { "id": "s7b", "start": 37.2, "end": 40.0, "type": "motion", "title": "Brand ending" }
+  ],
+  "dialogue": [
+    { "id": "p1", "speaker": "passenger", "voice": "am_puck",    "speed": 1.08, "start": 5.90,  "in_car": true,
+      "text": "Bro, what's the difference between a component speaker and a coaxial speaker?" },
+    { "id": "d1", "speaker": "driver",    "voice": "am_michael", "speed": 1.28, "start": 10.25, "in_car": true,
+      "text": "Good question! Both are car speakers, but their design and sound performance are different." },
+    { "id": "d2", "speaker": "driver",    "voice": "am_michael", "speed": 1.28, "start": 15.10, "in_car": false,
+      "text": "A component speaker has separate woofers and tweeters with a crossover. This allows better speaker positioning, sound separation and sound staging." },
+    { "id": "d3", "speaker": "driver",    "voice": "am_michael", "speed": 1.28, "start": 23.75, "in_car": false,
+      "text": "A coaxial speaker combines the woofer and tweeter into one unit. It's compact, convenient and easier to install." },
+    { "id": "d4", "speaker": "driver",    "voice": "am_michael", "speed": 1.34, "start": 30.20, "in_car": false,
+      "text": "So, for better sound staging and flexible positioning, choose component speakers. For a simple and convenient upgrade, coaxial speakers are a great option." }
+  ]
+}

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RODO Accessories - Component vs Coaxial (renderer)</title>
+<script type="importmap">
+{ "imports": { "three": "/node_modules/three/build/three.module.js", "three/addons/": "/node_modules/three/examples/jsm/" } }
+</script>
+<style>
+@font-face { font-family: 'Saira Condensed'; font-weight: 500; src: url('/node_modules/@fontsource/saira-condensed/files/saira-condensed-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira Condensed'; font-weight: 600; src: url('/node_modules/@fontsource/saira-condensed/files/saira-condensed-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira Condensed'; font-weight: 700; src: url('/node_modules/@fontsource/saira-condensed/files/saira-condensed-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira Condensed'; font-weight: 800; src: url('/node_modules/@fontsource/saira-condensed/files/saira-condensed-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira'; font-weight: 600; src: url('/node_modules/@fontsource/saira/files/saira-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Saira'; font-weight: 800; src: url('/node_modules/@fontsource/saira/files/saira-latin-800-normal.woff2') format('woff2'); }
+@font-face { font-family: 'InterW'; font-weight: 500; src: url('/node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'InterW'; font-weight: 600; src: url('/node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2') format('woff2'); }
+
+:root { --blue: #2f9bff; --blue2: #7cc4ff; --silver: #c9ced6; --dim: #8b929c; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: transparent; }
+#root { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; overflow: hidden; font-family: 'Saira Condensed', sans-serif; color: #fff; text-transform: uppercase; }
+#root > div, #root > svg { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+canvas { position: absolute; left: 0; top: 0; }
+.abs { position: absolute; }
+.metal { background: linear-gradient(180deg, #ffffff 0%, #e4e8ed 34%, #8e96a1 56%, #c6ccd4 70%, #f3f5f8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---- 3D stage HUD ---- */
+#stage { background: #030406; }
+#hud, #lines { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+#vig { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 60% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%); pointer-events: none; }
+.title { position: absolute; left: 0; width: 1080px; top: 212px; text-align: center; }
+.title .eyebrow { font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 27px; letter-spacing: 0.42em; color: var(--blue); margin-left: 0.42em; }
+.title h1 { margin: 8px 0 0; font-weight: 700; font-size: 98px; line-height: 1; letter-spacing: 0.025em; }
+.title .bar { margin: 20px auto 0; height: 3px; width: 220px; background: linear-gradient(90deg, rgba(47,155,255,0), var(--blue), rgba(47,155,255,0)); }
+
+.callout { position: absolute; white-space: nowrap; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 30px; line-height: 38px; letter-spacing: 0.16em; color: #eaf3ff; text-shadow: 0 0 18px rgba(47,155,255,0.9), 0 0 4px rgba(47,155,255,0.6); }
+.callout small { display: block; font-size: 19px; letter-spacing: 0.26em; color: var(--blue2); margin-bottom: 6px; text-shadow: none; }
+
+.list { position: absolute; left: 96px; top: 1392px; width: 900px; }
+.pt { position: relative; height: 76px; padding-left: 34px; font-weight: 700; font-size: 55px; line-height: 76px; letter-spacing: 0.035em; white-space: nowrap; }
+.pt .tick { position: absolute; left: 0; top: 16px; width: 8px; height: 44px; background: var(--blue); box-shadow: 0 0 18px rgba(47,155,255,0.9); transform-origin: 50% 100%; }
+.pt .tx { display: inline-block; }
+
+/* blueprint inset */
+#inset { position: absolute; left: 90px; top: 1046px; width: 900px; height: 320px; border: 1.5px solid rgba(124,196,255,0.35); background: linear-gradient(180deg, rgba(10,22,40,0.82), rgba(4,9,18,0.82)); }
+#inset::before, #inset::after { content: ''; position: absolute; width: 26px; height: 26px; border: 3px solid var(--blue); }
+#inset::before { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }
+#inset::after { right: -2px; bottom: -2px; border-left: 0; border-top: 0; }
+#inset .cap { position: absolute; left: 24px; top: 16px; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.3em; color: var(--blue2); }
+#inset svg { position: absolute; left: 0; top: 0; width: 900px; height: 320px; }
+#inset text { font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 19px; letter-spacing: 0.1em; fill: #eaf3ff; }
+
+/* comparison */
+#cmp .hdr { position: absolute; top: 236px; width: 540px; text-align: center; font-weight: 700; font-size: 80px; letter-spacing: 0.03em; line-height: 1; }
+#cmp .hdr small { display: block; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 22px; letter-spacing: 0.4em; color: var(--blue); margin: 0 0 12px 0.4em; }
+#cmp .hdr.l { left: 0; } #cmp .hdr.r { left: 540px; }
+#cmp .divider { position: absolute; left: 539px; top: 228px; width: 2px; height: 1340px; background: linear-gradient(180deg, rgba(47,155,255,0), var(--blue) 12%, var(--blue) 88%, rgba(47,155,255,0)); box-shadow: 0 0 22px rgba(47,155,255,0.85); transform-origin: 50% 0; }
+#cmp .vs { position: absolute; left: 496px; top: 246px; width: 88px; height: 88px; border-radius: 50%; border: 2px solid var(--blue); background: #05090f; text-align: center; font-weight: 700; font-size: 40px; line-height: 84px; letter-spacing: 0.04em; box-shadow: 0 0 28px rgba(47,155,255,0.7); }
+#cmp .row { position: absolute; left: 0; width: 1080px; height: 220px; }
+#cmp .row .tag { position: absolute; left: 440px; top: 0; width: 200px; height: 44px; border-radius: 22px; border: 1.5px solid rgba(124,196,255,0.7); background: #05090f; text-align: center; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 19px; line-height: 41px; letter-spacing: 0.3em; text-indent: 0.3em; color: var(--blue2); }
+#cmp .row .cell { position: absolute; top: 66px; width: 480px; text-align: center; font-weight: 700; font-size: 47px; line-height: 56px; letter-spacing: 0.03em; }
+#cmp .row .cell.l { left: 30px; } #cmp .row .cell.r { left: 570px; }
+#cmp .row .rule { position: absolute; top: 21px; height: 2px; background: rgba(124,196,255,0.55); }
+#cmp .row .rule.l { right: 640px; transform-origin: 100% 50%; width: 350px; } #cmp .row .rule.r { left: 640px; transform-origin: 0 50%; width: 350px; }
+#cmp .ptag { position: absolute; white-space: nowrap; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 23px; letter-spacing: 0.2em; color: #eaf3ff; text-shadow: 0 0 14px rgba(47,155,255,0.9); }
+#cmp .glow { position: absolute; top: 215px; width: 540px; height: 1370px; }
+#cmp .glow.l { left: 0; background: linear-gradient(90deg, rgba(47,155,255,0), rgba(47,155,255,0.16)); }
+#cmp .glow.r { left: 540px; background: linear-gradient(270deg, rgba(47,155,255,0), rgba(47,155,255,0.16)); }
+
+/* ---- logo ---- */
+#logo { background: #000; }
+#logo .word { position: absolute; left: 0; top: 742px; width: 1080px; text-align: center; font-family: 'Saira', sans-serif; font-weight: 800; font-size: 236px; line-height: 1; letter-spacing: 0.1em; text-indent: 0.1em; }
+#logo .sub { position: absolute; left: 0; top: 992px; width: 1080px; text-align: center; font-family: 'Saira', sans-serif; font-weight: 600; font-size: 58px; letter-spacing: 0.52em; text-indent: 0.52em; }
+#logo .rule { position: absolute; left: 240px; top: 1100px; width: 600px; height: 2px; background: linear-gradient(90deg, rgba(47,155,255,0), var(--blue), rgba(47,155,255,0)); box-shadow: 0 0 16px rgba(47,155,255,0.9); }
+#logo .cta1 { position: absolute; left: 0; top: 1150px; width: 1080px; text-align: center; font-weight: 700; font-size: 70px; letter-spacing: 0.06em; }
+#logo .cta2 { position: absolute; left: 0; top: 1262px; width: 1080px; text-align: center; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 36px; letter-spacing: 0.34em; text-indent: 0.34em; color: #d6ebff; }
+#logo .shine { -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ---- motion-graphics open (base layer): stands in for the live-action scenes 1-3 ---- */
+#alt { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; }
+#alt .brand { position: absolute; left: 0; top: 226px; width: 1080px; text-align: center; font-family: 'Saira', sans-serif; font-weight: 600; font-size: 31px; letter-spacing: 0.46em; text-indent: 0.46em; color: var(--silver); }
+#alt .brand i { display: block; margin: 16px auto 0; width: 150px; height: 2px; background: linear-gradient(90deg, rgba(47,155,255,0), var(--blue), rgba(47,155,255,0)); }
+#alt .lock { position: absolute; left: 0; top: 352px; width: 1080px; text-align: center; }
+#alt .lock .l { font-weight: 700; font-size: 150px; line-height: 0.98; letter-spacing: 0.02em; }
+#alt .lock .v { font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 34px; letter-spacing: 0.5em; text-indent: 0.5em; color: var(--blue); margin: 14px 0 10px; }
+#alt .chip { position: absolute; left: 390px; top: 366px; width: 300px; height: 50px; border-radius: 25px; border: 1.5px solid rgba(124,196,255,0.75); background: rgba(5,9,15,0.7); text-align: center; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 21px; line-height: 47px; letter-spacing: 0.32em; text-indent: 0.32em; color: var(--blue2); }
+#alt .big { position: absolute; left: 0; top: 446px; width: 1080px; text-align: center; font-weight: 700; font-size: 132px; line-height: 1.0; letter-spacing: 0.02em; }
+#alt .big .ln { display: block; }
+.ptag2 { position: absolute; white-space: nowrap; font-family: 'InterW', 'Inter', sans-serif; font-weight: 600; font-size: 25px; letter-spacing: 0.2em; color: #eaf3ff; text-shadow: 0 0 16px rgba(47,155,255,0.95); }
+#alt_flash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(160,210,255,0.9), rgba(47,155,255,0.35) 60%, rgba(47,155,255,0.1)); }
+#alt_fade { position: absolute; inset: 0; background: #000; }
+body.base #t4, body.base #t5, body.base .callout, body.base .list, body.base #inset, body.base #cmp { display: none; }
+body:not(.base) #alt { display: none; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="wavesFx"><canvas id="fx" width="1080" height="1920"></canvas></div>
+
+  <div id="stage">
+    <canvas id="gl" width="1080" height="1920"></canvas>
+    <svg id="lines" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div id="hud">
+      <div class="title" id="t4"><div class="eyebrow">Speaker type 01</div><h1 class="metal">Component Speaker</h1><div class="bar"></div></div>
+      <div class="title" id="t5"><div class="eyebrow">Speaker type 02</div><h1 class="metal">Coaxial Speaker</h1><div class="bar"></div></div>
+
+      <div class="callout" id="c_woofer"><small>01</small>Mid-bass<br>woofer</div>
+      <div class="callout" id="c_tweeter"><small>02</small>Separate<br>tweeter</div>
+      <div class="callout" id="c_xover"><small>03</small>External<br>crossover</div>
+
+      <div class="list" id="list4">
+        <div class="pt"><span class="tick"></span><span class="tx">Separate woofer &amp; tweeter</span></div>
+        <div class="pt"><span class="tick"></span><span class="tx">External crossover</span></div>
+        <div class="pt"><span class="tick"></span><span class="tx">Better sound staging potential</span></div>
+      </div>
+      <div class="list" id="list5">
+        <div class="pt"><span class="tick"></span><span class="tx">Integrated design</span></div>
+        <div class="pt"><span class="tick"></span><span class="tx">Compact &amp; convenient</span></div>
+        <div class="pt"><span class="tick"></span><span class="tx">Easy installation</span></div>
+      </div>
+
+      <div id="inset">
+        <div class="cap">Flexible speaker positioning</div>
+        <svg viewBox="0 0 900 320" xmlns="http://www.w3.org/2000/svg" id="car"></svg>
+      </div>
+
+      <div id="cmp">
+        <div class="glow l" id="glowL"></div><div class="glow r" id="glowR"></div>
+        <div class="hdr l" id="hdrL"><small>Type 01</small><span class="metal">Component</span></div>
+        <div class="hdr r" id="hdrR"><small>Type 02</small><span class="metal">Coaxial</span></div>
+        <div class="divider" id="divider"></div>
+        <div class="vs" id="vs">VS</div>
+        <div class="ptag" id="pt_w">Woofer</div>
+        <div class="ptag" id="pt_t">Tweeter</div>
+        <div class="ptag" id="pt_x">Crossover</div>
+        <div class="ptag" id="pt_c">Tweeter + woofer</div>
+        <div class="row" id="row1" style="top:1010px">
+          <div class="rule l"></div><div class="rule r"></div><div class="tag">Design</div>
+          <div class="cell l">Separate woofer,<br>tweeter &amp; crossover</div>
+          <div class="cell r">Woofer &amp; tweeter<br>in one unit</div>
+        </div>
+        <div class="row" id="row2" style="top:1250px">
+          <div class="rule l"></div><div class="rule r"></div><div class="tag">Best for</div>
+          <div class="cell l">Sound staging &amp;<br>flexible positioning</div>
+          <div class="cell r">A simple,<br>convenient upgrade</div>
+        </div>
+      </div>
+    </div>
+    <div id="alt">
+      <div class="brand" id="alt_brand">RODO Accessories<i></i></div>
+      <div class="lock" id="alt_lock"><div class="l metal" id="alt_l1">Component</div><div class="v" id="alt_vs">vs</div><div class="l metal" id="alt_l3">Coaxial</div></div>
+      <div class="chip" id="alt_chip">The question</div>
+      <div class="big metal" id="alt_q">What&rsquo;s the<br>difference?</div>
+      <div class="big metal" id="alt_a1">Both are<br>car speakers</div>
+      <div class="big" id="alt_a2"><span class="ln metal" id="alt_a2a">Different design</span><span class="ln metal" id="alt_a2b">Different sound</span></div>
+      <div class="ptag2" id="alt_tagL">Component speaker</div>
+      <div class="ptag2" id="alt_tagR">Coaxial speaker</div>
+    </div>
+    <div id="vig"></div>
+    <div id="alt_flash"></div><div id="alt_fade"></div>
+  </div>
+
+  <svg id="iris" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg"><circle id="irisRing" cx="540" cy="900" r="10" fill="none" stroke="#7cc4ff" stroke-width="10"/></svg>
+
+  <div id="logo">
+    <canvas id="lw" width="1080" height="1920"></canvas>
+    <div class="word metal" id="lg_word">RODO</div>
+    <div class="word shine" id="lg_shine">RODO</div>
+    <div class="sub metal" id="lg_sub">Accessories</div>
+    <div class="rule" id="lg_rule"></div>
+    <div class="cta1 metal" id="lg_c1">Upgrade your car audio</div>
+    <div class="cta2" id="lg_c2">Visit RODO Accessories</div>
+  </div>
+</div>
+<script type="module" src="./main.js"></script>
+</body>
+</html>

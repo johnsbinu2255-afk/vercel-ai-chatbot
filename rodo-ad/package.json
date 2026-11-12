@@ -1,0 +1,19 @@
+{
+  "name": "rodo-speaker-ad",
+  "private": true,
+  "version": "1.0.0",
+  "description": "RODO Accessories - Component vs Coaxial speaker ad (9:16, 40s)",
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/serve.mjs",
+    "render": "node scripts/render_frames.mjs",
+    "audio": "python3 scripts/build_audio.py",
+    "assemble": "bash scripts/assemble.sh"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.1.0",
+    "@fontsource/saira": "^5.1.0",
+    "@fontsource/saira-condensed": "^5.1.0",
+    "three": "0.169.0"
+  }
+}
